@@ -22,7 +22,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <header className="border-b border-white/10">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-5 py-2 sm:gap-4">
           <Link href="/" className="font-mincho shrink-0 py-2 text-lg tracking-wide">
-            二重人格
+            Nigxam
           </Link>
           <nav className="flex items-center gap-1 text-sm sm:gap-2">
             {links.map((link) => (

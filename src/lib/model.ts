@@ -460,7 +460,7 @@ function bodyFor(
 
 function proseFor(model: Omit<DecisionModel, "prose">) {
   const lines = [
-    "二重人格 — 意思決定モデル",
+    "Nigxam — 意思決定モデル",
     `回答：${model.answered}/${model.total}問`,
     `二重人格の可能性：${model.possibility}`,
     model.headline,

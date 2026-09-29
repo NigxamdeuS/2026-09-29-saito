@@ -22,7 +22,7 @@ export function HomeView() {
     <div className="mx-auto w-full max-w-3xl px-5 pt-10 pb-8 md:pt-20">
       <p className="text-sm text-[#e25c2a]">場面別の意思決定テスト</p>
       <h1 className="font-mincho mt-4 text-5xl leading-none font-medium md:text-7xl">
-        二重人格
+        Nigxam
       </h1>
       <p className="font-mincho mt-8 max-w-xl text-2xl leading-snug md:text-[2rem] md:leading-snug">
         こんなとき、あなたならどうしますか。

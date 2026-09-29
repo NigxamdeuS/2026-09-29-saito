@@ -5,8 +5,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "二重人格",
-    template: "%s — 二重人格",
+    default: "Nigxam",
+    template: "%s — Nigxam",
   },
   description:
     "100の場面に少しずつ答えて、自分の意思決定の傾向を読み取ります。二重人格の可能性は、場面によって選び方が分かれているかを確かめてから判定します。",
