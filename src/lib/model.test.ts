@@ -8,8 +8,15 @@ import {
   type Journal,
   type Pole,
 } from "./catalog";
-import { buildModel } from "./model";
-import { displayPoles, QUESTION_ORDER, type Question } from "./questions";
+import { buildModel, predictFor } from "./model";
+import {
+  displayPoles,
+  getQuestion,
+  nextRound,
+  QUESTION_ORDER,
+  retestsDue,
+  type Question,
+} from "./questions";
 import { sanitizeJournal } from "./storage";
 
 function journalFrom(poleFor: (question: Question) => Pole | null): Journal {
@@ -158,6 +165,102 @@ describe("意思決定モデル", () => {
   });
 });
 
+function withRetests(journal: Journal, same: number, total: number): Journal {
+  const ids = Object.keys(journal.answers).slice(0, total);
+  journal.retests = ids.map((id, index) => {
+    const original = journal.answers[id].pole;
+    const flipped: Pole = original === "plus" ? "minus" : "plus";
+    return {
+      id,
+      original,
+      pole: index < same ? original : flipped,
+      at: "2026-09-29T01:00:00.000Z",
+    };
+  });
+  return journal;
+}
+
+describe("確かめと予測", () => {
+  it("出し直しで答えが戻らなければ、分かれ方ではなくばらつきと読む", () => {
+    const journal = withRetests(
+      journalFrom((question) => byContext(question.context)),
+      1,
+      4,
+    );
+    const model = buildModel(journal);
+    assert.equal(model.consistency.rate, 0.25);
+    assert.equal(model.pattern, "noisy");
+    assert.equal(model.possibility, "判断しない");
+    assert.equal(model.selves, null);
+  });
+
+  it("出し直しの一致が半分なら、高いではなくありうるにとどめる", () => {
+    const journal = withRetests(
+      journalFrom((question) => byContext(question.context)),
+      2,
+      4,
+    );
+    const model = buildModel(journal);
+    assert.equal(model.pattern, "splitting");
+    assert.equal(model.possibility, "ありうる");
+  });
+
+  it("出し直しで戻れば、二つの型の判断は保たれる", () => {
+    const journal = withRetests(
+      journalFrom((question) => byContext(question.context)),
+      4,
+      4,
+    );
+    const model = buildModel(journal);
+    assert.equal(model.pattern, "dual");
+    assert.match(model.body, /4問出し直し、4問で同じ手/);
+  });
+
+  it("場面ごとに分かれた記録では、場面を見る予測が当たり、見ない予測は外れる", () => {
+    const journal = journalFrom((question) =>
+      question.id === "unfinished-work" ? null : byContext(question.context),
+    );
+    const question = getQuestion("unfinished-work");
+    assert.ok(question);
+    const prediction = predictFor(journal, question);
+    assert.equal(prediction?.context, "plus");
+    assert.equal(prediction?.overall, "mid");
+    assert.equal(predictFor(emptyJournal(), question), null);
+  });
+
+  it("場面ごとの表は、軸と場面の平均を持つ", () => {
+    const model = buildModel(journalFrom((question) => byContext(question.context)));
+    assert.equal(model.grid.tempo.work?.mean, 1);
+    assert.equal(model.grid.tempo.close?.mean, -1);
+    assert.equal(buildModel(emptyJournal()).grid.tempo.work, null);
+  });
+
+  it("15問を超えると、区切りに一つ確かめの問が入る", () => {
+    const early = journalFrom((question) =>
+      QUESTION_ORDER.indexOf(question) < 14 ? "plus" : null,
+    );
+    assert.equal(retestsDue(early), 0);
+    assert.ok(nextRound(early).every((item) => !item.retest));
+
+    const later = journalFrom((question) =>
+      QUESTION_ORDER.indexOf(question) < 15 ? "plus" : null,
+    );
+    const round = nextRound(later);
+    assert.equal(round.length, 5);
+    assert.equal(round.filter((item) => item.retest).length, 1);
+    assert.equal(round[2].retest, true);
+    assert.ok(later.answers[round[2].id]);
+
+    later.retests.push({
+      id: round[2].id,
+      pole: "plus",
+      original: "plus",
+      at: "2026-09-29T01:00:00.000Z",
+    });
+    assert.ok(nextRound(later).every((item) => !item.retest));
+  });
+});
+
 describe("記録の読み込み", () => {
   it("壊れた記録は空に戻す", () => {
     assert.deepEqual(sanitizeJournal(null), emptyJournal());
@@ -169,9 +272,17 @@ describe("記録の読み込み", () => {
         bad: { pole: "sideways", updatedAt: "2026-09-29T00:00:00.000Z" },
       },
       deferred: ["chase-alone", 12],
+      retests: [
+        { id: "bet-work", pole: "minus", original: "plus", at: "2026-09-29T01:00:00.000Z" },
+        { id: "bet-work", pole: "plus", original: "plus", at: "2026-09-29T02:00:00.000Z" },
+        { id: "missing", pole: "plus", original: "plus", at: "2026-09-29T01:00:00.000Z" },
+      ],
     });
     assert.deepEqual(cleaned.answers["bet-work"]?.pole, "plus");
     assert.equal(cleaned.answers.bad, undefined);
     assert.deepEqual(cleaned.deferred, ["chase-alone"]);
+    assert.equal(cleaned.retests.length, 1);
+    assert.equal(cleaned.retests[0].pole, "minus");
+    assert.deepEqual(sanitizeJournal({ version: 1, answers: {} }).retests, []);
   });
 });

@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { emptyJournal, type Journal, type Pole } from "@/lib/catalog";
+import { predictFor } from "@/lib/model";
+import { getQuestion } from "@/lib/questions";
 import { loadJournal, saveJournal } from "@/lib/storage";
 
 type JournalApi = {
@@ -9,7 +11,9 @@ type JournalApi = {
   journal: Journal;
   persistError: boolean;
   answer: (questionId: string, pole: Pole) => void;
+  retest: (questionId: string, pole: Pole) => void;
   defer: (questionId: string) => void;
+  replace: (next: Journal) => void;
   reset: () => void;
 };
 
@@ -44,13 +48,32 @@ export function JournalProvider({ children }: { children: React.ReactNode }) {
       persistError,
       answer: (questionId, pole) => {
         const current = journalRef.current;
+        const previous = current.answers[questionId];
+        const question = getQuestion(questionId);
+        const prediction =
+          previous?.prediction ??
+          (question && !previous ? predictFor(current, question) ?? undefined : undefined);
         commit({
           ...current,
           answers: {
             ...current.answers,
-            [questionId]: { pole, updatedAt: new Date().toISOString() },
+            [questionId]: prediction
+              ? { pole, updatedAt: new Date().toISOString(), prediction }
+              : { pole, updatedAt: new Date().toISOString() },
           },
           deferred: current.deferred.filter((id) => id !== questionId),
+        });
+      },
+      retest: (questionId, pole) => {
+        const current = journalRef.current;
+        const original = current.answers[questionId];
+        if (!original || current.retests.some((item) => item.id === questionId)) return;
+        commit({
+          ...current,
+          retests: [
+            ...current.retests,
+            { id: questionId, pole, original: original.pole, at: new Date().toISOString() },
+          ],
         });
       },
       defer: (questionId) => {
@@ -58,6 +81,7 @@ export function JournalProvider({ children }: { children: React.ReactNode }) {
         if (current.answers[questionId] || current.deferred.includes(questionId)) return;
         commit({ ...current, deferred: [...current.deferred, questionId] });
       },
+      replace: (next) => commit(next),
       reset: () => commit(emptyJournal()),
     };
   }, [journal, persistError, ready]);

@@ -1,6 +1,9 @@
 import {
   contextOrder,
   familyOrder,
+  RETEST_EVERY,
+  RETEST_START,
+  SESSION_SIZE,
   type ContextId,
   type FamilyId,
   type Journal,
@@ -905,4 +908,33 @@ export function questionQueue(journal: Journal): Question[] {
     ...open.filter((question) => !deferred.has(question.id)),
     ...open.filter((question) => deferred.has(question.id)),
   ];
+}
+
+export type RoundItem = { id: string; retest: boolean };
+
+export function retestsDue(journal: Journal): number {
+  const answered = Object.keys(journal.answers).length;
+  if (answered < RETEST_START) return 0;
+  return Math.floor((answered - RETEST_START) / RETEST_EVERY) + 1;
+}
+
+export function retestCandidate(journal: Journal): string | null {
+  const retested = new Set(journal.retests.map((item) => item.id));
+  const candidates = Object.entries(journal.answers)
+    .filter(([id]) => !retested.has(id) && byId.has(id))
+    .sort((a, b) => (a[1].updatedAt < b[1].updatedAt ? -1 : a[1].updatedAt > b[1].updatedAt ? 1 : 0));
+  return candidates[0]?.[0] ?? null;
+}
+
+export function nextRound(journal: Journal): RoundItem[] {
+  const items: RoundItem[] = questionQueue(journal)
+    .slice(0, SESSION_SIZE)
+    .map((question) => ({ id: question.id, retest: false }));
+  if (items.length === 0) return items;
+  if (journal.retests.length >= retestsDue(journal)) return items;
+  const candidate = retestCandidate(journal);
+  if (!candidate) return items;
+  const at = Math.min(2, items.length);
+  items.splice(at, 0, { id: candidate, retest: true });
+  return items.slice(0, SESSION_SIZE);
 }

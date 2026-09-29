@@ -1,6 +1,8 @@
 import {
   axes,
   axisOrder,
+  contextOrder,
+  contexts,
   families,
   familyOrder,
   joinContexts,
@@ -11,6 +13,7 @@ import {
   type FamilyId,
   type Journal,
   type Pole,
+  type Prediction,
 } from "@/lib/catalog";
 import { QUESTION_ORDER, type Question } from "@/lib/questions";
 
@@ -53,6 +56,20 @@ export type SelfSide = {
   behavior: string;
 };
 
+export type GridCell = { n: number; mean: number } | null;
+
+export type PredictionStats = {
+  n: number;
+  overallHits: number;
+  contextHits: number;
+};
+
+export type Consistency = {
+  n: number;
+  same: number;
+  rate: number | null;
+};
+
 export type DecisionModel = {
   answered: number;
   total: number;
@@ -63,6 +80,9 @@ export type DecisionModel = {
   axes: AxisPortrait[];
   swaps: Swap[];
   selves: { name: string; a: SelfSide; b: SelfSide } | null;
+  grid: Record<AxisId, Record<ContextId, GridCell>>;
+  predictions: PredictionStats;
+  consistency: Consistency;
   prose: string;
 };
 
@@ -285,14 +305,114 @@ function selvesFrom(axis: AxisPortrait | undefined) {
   };
 }
 
-function patternOf(answered: number, portraits: AxisPortrait[]): Pattern {
+function patternOf(
+  answered: number,
+  portraits: AxisPortrait[],
+  consistency: Consistency,
+): Pattern {
   if (answered < 16) return "thin";
   const strong = portraits.filter((axis) => axis.kind === "split");
   const noisy = portraits.filter((axis) => axis.kind === "noisy").length;
-  if (strong.length >= 2 && answered >= 24) return "dual";
-  if (strong.length >= 1) return "splitting";
-  if (noisy >= 2) return "noisy";
-  return "single";
+  let pattern: Pattern = "single";
+  if (strong.length >= 2 && answered >= 24) pattern = "dual";
+  else if (strong.length >= 1) pattern = "splitting";
+  else if (noisy >= 2) pattern = "noisy";
+
+  // Re-asking the same situation separates a context-bound second pattern
+  // from answers that simply do not reproduce.
+  if (consistency.rate !== null && consistency.n >= 3) {
+    if (consistency.rate < 0.5) return "noisy";
+    if (pattern === "dual" && consistency.rate < 0.6) return "splitting";
+  }
+  return pattern;
+}
+
+function toPole(value: number): Pole {
+  if (value >= 0.34) return "plus";
+  if (value <= -0.34) return "minus";
+  return "mid";
+}
+
+export function predictFor(
+  journal: Journal,
+  question: Question,
+  questions: Question[] = QUESTION_ORDER,
+): Prediction | null {
+  const axis = families[question.family].primary;
+  const all: number[] = [];
+  const same: number[] = [];
+  for (const other of questions) {
+    if (other.id === question.id) continue;
+    if (families[other.family].primary !== axis) continue;
+    const answer = journal.answers[other.id];
+    if (!answer) continue;
+    const value = POLE_VALUE[answer.pole];
+    all.push(value);
+    if (other.context === question.context) same.push(value);
+  }
+  if (all.length === 0) return null;
+  const overall = toPole(mean(all));
+  return { overall, context: same.length > 0 ? toPole(mean(same)) : overall };
+}
+
+function predictionStats(journal: Journal, questions: Question[]): PredictionStats {
+  const stats: PredictionStats = { n: 0, overallHits: 0, contextHits: 0 };
+  for (const question of questions) {
+    const answer = journal.answers[question.id];
+    if (!answer?.prediction) continue;
+    stats.n += 1;
+    if (answer.prediction.overall === answer.pole) stats.overallHits += 1;
+    if (answer.prediction.context === answer.pole) stats.contextHits += 1;
+  }
+  return stats;
+}
+
+function consistencyOf(journal: Journal): Consistency {
+  const n = journal.retests.length;
+  const same = journal.retests.filter((item) => item.pole === item.original).length;
+  return { n, same, rate: n > 0 ? same / n : null };
+}
+
+function gridOf(journal: Journal, questions: Question[]) {
+  const grid = {} as Record<AxisId, Record<ContextId, GridCell>>;
+  for (const axis of axisOrder) {
+    const row = {} as Record<ContextId, GridCell>;
+    for (const context of contextOrder) {
+      const values = questions
+        .filter(
+          (question) =>
+            question.context === context &&
+            families[question.family].primary === axis &&
+            journal.answers[question.id],
+        )
+        .map((question) => POLE_VALUE[journal.answers[question.id].pole]);
+      row[context] = values.length > 0 ? { n: values.length, mean: mean(values) } : null;
+    }
+    grid[axis] = row;
+  }
+  return grid;
+}
+
+function evidenceNotes(predictions: PredictionStats, consistency: Consistency) {
+  const notes: string[] = [];
+  if (consistency.n > 0) {
+    notes.push(
+      `前に出た場面を${consistency.n}問出し直し、${consistency.same}問で同じ手を選んだ。`,
+    );
+  }
+  if (predictions.n >= 8) {
+    const gain = predictions.contextHits - predictions.overallHits;
+    if (gain >= 2) {
+      notes.push(
+        `場面を知っているモデルのほうが、次の選択をよく当てた(${predictions.contextHits}/${predictions.n} と ${predictions.overallHits}/${predictions.n})。`,
+      );
+    } else {
+      notes.push(
+        `次の選択は、場面を見ても見なくても同じくらい当たった(${predictions.contextHits}/${predictions.n} と ${predictions.overallHits}/${predictions.n})。`,
+      );
+    }
+  }
+  return notes.join("");
 }
 
 const headlines: Record<Pattern, string> = {
@@ -349,6 +469,19 @@ function proseFor(model: Omit<DecisionModel, "prose">) {
     "軸",
     ...model.axes.map((axis) => lean(axis)),
   ];
+  lines.push("", "場面ごとの寄り");
+  for (const context of contextOrder) {
+    const leaning = model.axes
+      .map((axis) => {
+        const cell = model.grid[axis.axis][context];
+        if (!cell || Math.abs(cell.mean) < 0.5) return null;
+        return cell.mean > 0 ? axis.plusLabel : axis.minusLabel;
+      })
+      .filter((label): label is string => label !== null);
+    if (leaning.length > 0) {
+      lines.push(`${contexts[context].label}: ${leaning.join("、")}`);
+    }
+  }
   if (model.swaps.length > 0) {
     lines.push("", "逆を選んだ組");
     for (const swap of model.swaps) {
@@ -370,7 +503,9 @@ export function buildModel(
 ): DecisionModel {
   const answered = questions.filter((question) => journal.answers[question.id]).length;
   const portraits = axisOrder.map((axis) => analyzeAxis(axis, journal, questions));
-  const pattern = patternOf(answered, portraits);
+  const consistency = consistencyOf(journal);
+  const predictions = predictionStats(journal, questions);
+  const pattern = patternOf(answered, portraits, consistency);
   const swaps = collectSwaps(journal, questions);
   const strongest = portraits
     .filter((axis) => axis.kind === "split")
@@ -381,10 +516,13 @@ export function buildModel(
     pattern,
     possibility: possibilities[pattern],
     headline: headlines[pattern],
-    body: bodyFor(pattern, answered, portraits),
+    body: bodyFor(pattern, answered, portraits) + evidenceNotes(predictions, consistency),
     axes: portraits,
     swaps,
-    selves: pattern === "thin" ? null : selvesFrom(strongest),
+    selves: pattern === "thin" || pattern === "noisy" ? null : selvesFrom(strongest),
+    grid: gridOf(journal, questions),
+    predictions,
+    consistency,
   };
   return { ...model, prose: proseFor(model) };
 }

@@ -5,29 +5,38 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useJournal } from "@/components/journal-context";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { contexts, SESSION_SIZE, type Pole } from "@/lib/catalog";
-import { buildModel } from "@/lib/model";
-import { displayPoles, getQuestion, questionQueue } from "@/lib/questions";
+import { contexts, type Journal, type Pole } from "@/lib/catalog";
+import { buildModel, predictFor } from "@/lib/model";
+import { displayPoles, getQuestion, nextRound, type RoundItem } from "@/lib/questions";
 import { cn } from "cn";
 
 type Phase = "ask" | "break" | "done";
 
 type Round = {
-  ids: string[];
+  items: RoundItem[];
   cursor: number;
   saved: number;
+  predicted: number;
+  hits: number;
   phase: Phase;
 };
 
-function openRound(ids: string[]): Round {
-  if (ids.length === 0) return { ids: [], cursor: 0, saved: 0, phase: "done" };
-  return { ids, cursor: 0, saved: 0, phase: "ask" };
+function openRound(journal: Journal): Round {
+  const items = nextRound(journal);
+  return {
+    items,
+    cursor: 0,
+    saved: 0,
+    predicted: 0,
+    hits: 0,
+    phase: items.length === 0 ? "done" : "ask",
+  };
 }
 
 export function AskView() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("q");
-  const { ready, journal, answer, defer } = useJournal();
+  const { ready, journal, answer, retest, defer } = useJournal();
   const router = useRouter();
   const [round, setRound] = useState<Round | null>(null);
   const [picked, setPicked] = useState<{ id: string; pole: Pole | null }>({
@@ -37,14 +46,17 @@ export function AskView() {
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   if (ready && !editId && round === null) {
-    const queue = questionQueue(journal);
-    setRound(openRound(queue.slice(0, SESSION_SIZE).map((question) => question.id)));
+    setRound(openRound(journal));
   }
 
-  const questionId = editId ?? (round ? round.ids[round.cursor] : "") ?? "";
-  if (questionId !== picked.id) {
+  const item: RoundItem | undefined = editId
+    ? { id: editId, retest: false }
+    : round?.items[round.cursor];
+  const questionId = item?.id ?? "";
+  const pickKey = `${questionId}:${item?.retest ? "retest" : "answer"}`;
+  if (pickKey !== picked.id) {
     setPicked({
-      id: questionId,
+      id: pickKey,
       pole: editId ? (journal.answers[editId]?.pole ?? null) : null,
     });
   }
@@ -55,65 +67,80 @@ export function AskView() {
   useEffect(() => {
     headingRef.current?.focus();
     if (questionId) window.scrollTo(0, 0);
-  }, [questionId, phase]);
+  }, [pickKey, phase, questionId]);
 
-  useEffect(() => {
-    if (!question || phase !== "ask") return;
-    const current = question;
-    const poles = displayPoles(current.id);
-    function onKey(event: KeyboardEvent) {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (event.key === "1" || event.key === "2" || event.key === "3") {
-        event.preventDefault();
-        const pole = poles[Number(event.key) - 1];
-        setPicked({ id: current.id, pole });
-      }
-      if (
-        event.key === "Enter" &&
-        picked.pole &&
-        event.target instanceof HTMLElement &&
-        event.target.tagName !== "BUTTON"
-      ) {
-        event.preventDefault();
-        answer(current.id, picked.pole);
-        if (editId) {
-          router.push("/log");
-          return;
-        }
-        setRound((state) => {
-          if (!state) return state;
-          const saved = state.saved + 1;
-          if (state.cursor + 1 >= state.ids.length) {
-            return { ...state, saved, phase: "break" };
-          }
-          return { ...state, saved, cursor: state.cursor + 1, phase: "ask" };
-        });
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [question, phase, picked.pole, editId, answer, router]);
-
-  function advance(savedDelta: number) {
+  function advance(outcome: { saved: boolean; predicted: boolean; hit: boolean }) {
     setRound((current) => {
       if (!current) return current;
-      const saved = current.saved + savedDelta;
-      if (current.cursor + 1 >= current.ids.length) {
-        return { ...current, saved, phase: "break" };
+      const next = {
+        ...current,
+        saved: current.saved + (outcome.saved ? 1 : 0),
+        predicted: current.predicted + (outcome.predicted ? 1 : 0),
+        hits: current.hits + (outcome.hit ? 1 : 0),
+      };
+      if (current.cursor + 1 >= current.items.length) {
+        return { ...next, phase: "break" };
       }
-      return { ...current, saved, cursor: current.cursor + 1, phase: "ask" };
+      return { ...next, cursor: current.cursor + 1, phase: "ask" };
     });
   }
 
   function choose(pole: Pole) {
-    if (!question) return;
+    if (!question || !item) return;
+    if (item.retest) {
+      retest(question.id, pole);
+      advance({ saved: true, predicted: false, hit: false });
+      return;
+    }
+    const firstTime = !journal.answers[question.id];
+    const prediction = firstTime ? predictFor(journal, question) : null;
     answer(question.id, pole);
     if (editId) {
       router.push("/log");
       return;
     }
-    advance(1);
+    advance({
+      saved: true,
+      predicted: prediction !== null,
+      hit: prediction?.context === pole,
+    });
   }
+
+  function skip() {
+    if (!question || !item) return;
+    if (!item.retest) defer(question.id);
+    advance({ saved: false, predicted: false, hit: false });
+  }
+
+  const chooseRef = useRef(choose);
+  useEffect(() => {
+    chooseRef.current = choose;
+  });
+
+  useEffect(() => {
+    if (!question || phase !== "ask") return;
+    const poles = displayPoles(question.id);
+    const current = question;
+    function onKey(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === "1" || event.key === "2" || event.key === "3") {
+        event.preventDefault();
+        setPicked({ id: pickKey, pole: poles[Number(event.key) - 1] });
+      }
+      if (
+        event.key === "Enter" &&
+        picked.pole &&
+        event.target instanceof HTMLElement &&
+        event.target.tagName !== "BUTTON" &&
+        event.target.tagName !== "A"
+      ) {
+        event.preventDefault();
+        if (current.id === questionId) chooseRef.current(picked.pole);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [question, phase, picked.pole, pickKey, questionId]);
 
   if (!ready || (!editId && round === null)) {
     return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">記録を開いています</p>;
@@ -155,7 +182,7 @@ export function AskView() {
   }
 
   if (!editId && phase === "break" && round) {
-    const answered = buildModel(journal).answered;
+    const model = buildModel(journal);
     return (
       <section className="mx-auto w-full max-w-3xl px-5 py-16">
         <div className="paper rounded-3xl px-6 py-10 md:px-10">
@@ -165,22 +192,25 @@ export function AskView() {
             className="font-mincho text-4xl leading-tight outline-none"
           >
             {round.saved > 0
-              ? `${round.ids.length}問、置いた。`
-              : `${round.ids.length}問を保留した。`}
+              ? `${round.items.length}問、置いた。`
+              : `${round.items.length}問を保留した。`}
           </h1>
           <p className="mt-4 leading-8 text-[#3f3832]">
             {round.saved > 0
-              ? `この区切りで答えたのは${round.saved}問。モデルはここまでで更新されている。全体では${answered}問。`
+              ? `この区切りで答えたのは${round.saved}問。モデルはここまでで更新されている。全体では${model.answered}問。`
               : "答えはまだ増えていない。保留した問は、あとからもう一度来る。"}
           </p>
+          {round.predicted > 0 && (
+            <p className="mt-3 text-sm leading-7 text-[#3f3832]">
+              答える前に、モデルは{round.predicted}問の選択を予測していた。当たったのは{round.hits}問。
+            </p>
+          )}
+          <div className="mt-6 flex items-baseline gap-3 border-t border-black/10 pt-5">
+            <p className="text-xs text-[#6d645b]">いまの可能性</p>
+            <p className="font-mincho text-2xl">{model.possibility}</p>
+          </div>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button
-              className="h-12 px-6"
-              onClick={() => {
-                const queue = questionQueue(journal);
-                setRound(openRound(queue.slice(0, SESSION_SIZE).map((item) => item.id)));
-              }}
-            >
+            <Button className="h-12 px-6" onClick={() => setRound(openRound(journal))}>
               もう五問
             </Button>
             <Link
@@ -201,12 +231,12 @@ export function AskView() {
     );
   }
 
-  if (!question || !round && !editId) {
+  if (!question || !item) {
     return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">問を開いています</p>;
   }
 
   const poles = displayPoles(question.id);
-  const answered = buildModel(journal).answered;
+  const answered = Object.keys(journal.answers).length;
   const context = contexts[question.context];
   const selected = picked.pole;
 
@@ -221,9 +251,14 @@ export function AskView() {
           <p className="tabular-nums text-[#6d645b]">
             {editId
               ? "選び直す"
-              : `この区切り ${(round?.cursor ?? 0) + 1}/${round?.ids.length ?? SESSION_SIZE} · 全体 ${answered}/100`}
+              : `この区切り ${(round?.cursor ?? 0) + 1}/${round?.items.length ?? 0} · 全体 ${answered}/100`}
           </p>
         </div>
+        {item.retest && (
+          <p className="mt-6 rounded-xl bg-[#1c1712]/5 px-3 py-2 text-xs leading-6 text-[#3f3832]">
+            確かめの問。前にも出た場面を、もう一度出している。前の答えは思い出さず、いまの手で選ぶ。
+          </p>
+        )}
         <h1
           ref={headingRef}
           tabIndex={-1}
@@ -240,7 +275,7 @@ export function AskView() {
                 type="button"
                 role="radio"
                 aria-checked={active}
-                onClick={() => setPicked({ id: question.id, pole })}
+                onClick={() => setPicked({ id: pickKey, pole })}
                 className={cn(
                   "rounded-2xl border px-4 py-4 text-left text-[15px] leading-7 transition",
                   active
@@ -262,13 +297,10 @@ export function AskView() {
           ) : (
             <button
               type="button"
-              onClick={() => {
-                defer(question.id);
-                advance(0);
-              }}
+              onClick={skip}
               className="text-left text-sm text-[#6d645b] underline-offset-4 hover:underline"
             >
-              いまは保留
+              {item.retest ? "この確かめは飛ばす" : "いまは保留"}
             </button>
           )}
           <Button className="h-12 px-6" disabled={!selected} onClick={() => selected && choose(selected)}>

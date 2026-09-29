@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useJournal } from "@/components/journal-context";
 import { ResetJournal } from "@/components/reset-journal";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { joinContexts } from "@/lib/catalog";
-import { buildModel, type AxisPortrait } from "@/lib/model";
+import { axes, axisOrder, contextOrder, contexts, joinContexts } from "@/lib/catalog";
+import { buildModel, type AxisPortrait, type DecisionModel } from "@/lib/model";
 import { cn } from "cn";
 
 const kindLabel = {
@@ -95,6 +95,132 @@ function AxisTrack({ axis }: { axis: AxisPortrait }) {
   );
 }
 
+function ContextGrid({ model }: { model: DecisionModel }) {
+  return (
+    <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
+      <table className="w-full table-fixed border-collapse text-xs">
+        <caption className="sr-only">軸ごと、場面ごとの寄り</caption>
+        <thead>
+          <tr className="text-[#b3a898]">
+            <th scope="col" className="w-[4.5rem] px-2 py-3 text-left font-normal">
+              <span className="sr-only">軸</span>
+            </th>
+            {contextOrder.map((context) => (
+              <th key={context} scope="col" className="px-1 py-3 text-center font-normal">
+                {contexts[context].label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {axisOrder.map((axis) => (
+            <tr key={axis} className="border-t border-white/5">
+              <th scope="row" className="px-2 py-2 text-left font-normal text-[#ddd4c6]">
+                {axes[axis].name}
+              </th>
+              {contextOrder.map((context) => {
+                const cell = model.grid[axis][context];
+                const strength = cell ? Math.abs(cell.mean) : 0;
+                const side = !cell || strength < 0.34 ? "mid" : cell.mean > 0 ? "plus" : "minus";
+                const label = !cell
+                  ? "未回答"
+                  : side === "mid"
+                    ? "中間"
+                    : side === "plus"
+                      ? axes[axis].plus
+                      : axes[axis].minus;
+                return (
+                  <td key={context} className="p-1">
+                    <div
+                      title={`${axes[axis].name} × ${contexts[context].label}: ${label}${cell ? `(${cell.n}問)` : ""}`}
+                      aria-label={`${contexts[context].label}の${axes[axis].name}: ${label}`}
+                      className={cn(
+                        "flex h-9 items-center justify-center rounded-md tabular-nums",
+                        !cell && "border border-dashed border-white/10 text-[#6d645b]",
+                        side === "plus" && "text-[#fff3ec]",
+                        side === "minus" && "text-[#eef6f1]",
+                        side === "mid" && cell && "bg-white/10 text-[#ddd4c6]",
+                      )}
+                      style={
+                        side === "plus"
+                          ? { backgroundColor: `rgba(226, 92, 42, ${0.3 + strength * 0.6})` }
+                          : side === "minus"
+                            ? { backgroundColor: `rgba(142, 174, 152, ${0.25 + strength * 0.55})` }
+                            : undefined
+                      }
+                    >
+                      {cell ? (side === "plus" ? "＋" : side === "minus" ? "−" : "・") : ""}
+                    </div>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="border-t border-white/10 px-3 py-3 text-xs leading-6 text-[#b3a898]">
+        <span className="text-[#e25c2a]">＋</span> は各軸の一つ目の側(先に動く・自分の側を守る など)、
+        <span className="text-[#8eae98]">−</span> はもう一方の側。列ごとに色が入れ替わるほど、場面で型が分かれている。
+      </p>
+    </div>
+  );
+}
+
+function Evidence({ model }: { model: DecisionModel }) {
+  const { predictions, consistency } = model;
+  return (
+    <div className="mt-6 grid gap-3 sm:grid-cols-2">
+      <section className="rounded-2xl border border-white/10 px-4 py-5">
+        <h3 className="text-sm">次の選択の予測</h3>
+        {predictions.n === 0 ? (
+          <p className="mt-3 text-xs leading-6 text-[#b3a898]">
+            同じ軸の答えが一つ貯まると、答える前にモデルが予測を置く。
+          </p>
+        ) : (
+          <dl className="mt-3 grid gap-2 text-xs">
+            <div className="flex justify-between gap-3">
+              <dt className="text-[#d9d0c3]">場面を見るモデル</dt>
+              <dd className="tabular-nums">
+                {predictions.contextHits} / {predictions.n}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-[#d9d0c3]">場面を見ないモデル</dt>
+              <dd className="tabular-nums">
+                {predictions.overallHits} / {predictions.n}
+              </dd>
+            </div>
+            <p className="mt-1 leading-6 text-[#b3a898]">
+              場面を見るほうが当たるなら、選び方は場所に結びついている。
+            </p>
+          </dl>
+        )}
+      </section>
+      <section className="rounded-2xl border border-white/10 px-4 py-5">
+        <h3 className="text-sm">出し直しの一致</h3>
+        {consistency.n === 0 ? (
+          <p className="mt-3 text-xs leading-6 text-[#b3a898]">
+            15問を超えると、前に出た場面を十問ごとに一つ出し直す。一致が低いと、分かれ方ではなく揺れとして読む。
+          </p>
+        ) : (
+          <>
+            <p className="mt-3 text-xs tabular-nums">
+              {consistency.same} / {consistency.n} で同じ手
+            </p>
+            <p className="mt-2 text-xs leading-6 text-[#b3a898]">
+              {consistency.n < 3
+                ? "三問そろうと、可能性の判断に使う。"
+                : (consistency.rate ?? 0) < 0.5
+                  ? "同じ場面でも答えが入れ替わる。いまは型の分かれ方として判断しない。"
+                  : "同じ場面では、同じ手に戻っている。"}
+            </p>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export function ModelView() {
   const { ready, journal } = useJournal();
   const [copied, setCopied] = useState(false);
@@ -143,6 +269,22 @@ export function ModelView() {
           </section>
         </div>
       )}
+
+      <section className="mt-12">
+        <h2 className="font-mincho text-2xl">場面ごとの寄り</h2>
+        <p className="mt-3 text-sm leading-7 text-[#d9d0c3]">
+          八つの軸を、五つの場面ごとに並べた。一つの型なら、行の色は場面をまたいで揃う。
+        </p>
+        <ContextGrid model={model} />
+      </section>
+
+      <section className="mt-12">
+        <h2 className="font-mincho text-2xl">判断の裏づけ</h2>
+        <p className="mt-3 text-sm leading-7 text-[#d9d0c3]">
+          分かれ方が本物かは、二つの確かめで見る。場面を知ると予測が当たるか。同じ場面を出し直したとき、同じ手に戻るか。
+        </p>
+        <Evidence model={model} />
+      </section>
 
       <section className="mt-12">
         <h2 className="font-mincho text-2xl">八つの軸</h2>

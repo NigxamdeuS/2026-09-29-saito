@@ -151,22 +151,38 @@ export const familyOrder = Object.keys(families) as FamilyId[];
 
 export type Pole = "plus" | "mid" | "minus";
 
+export type Prediction = {
+  overall: Pole;
+  context: Pole;
+};
+
 export type AnswerRecord = {
   pole: Pole;
   updatedAt: string;
+  prediction?: Prediction;
+};
+
+export type Retest = {
+  id: string;
+  pole: Pole;
+  original: Pole;
+  at: string;
 };
 
 export type Journal = {
   version: 1;
   answers: Record<string, AnswerRecord>;
   deferred: string[];
+  retests: Retest[];
 };
 
 export const SESSION_SIZE = 5;
 export const TOTAL_QUESTIONS = familyOrder.length * contextOrder.length;
+export const RETEST_START = 15;
+export const RETEST_EVERY = 10;
 
 export function emptyJournal(): Journal {
-  return { version: 1, answers: {}, deferred: [] };
+  return { version: 1, answers: {}, deferred: [], retests: [] };
 }
 
 export function isPole(value: unknown): value is Pole {
