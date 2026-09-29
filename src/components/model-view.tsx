@@ -102,11 +102,15 @@ function ContextGrid({ model }: { model: DecisionModel }) {
         <caption className="sr-only">軸ごと、場面ごとの寄り</caption>
         <thead>
           <tr className="text-[#b3a898]">
-            <th scope="col" className="w-[4.5rem] px-2 py-3 text-left font-normal">
+            <th scope="col" className="w-[3.75rem] px-2 py-3 text-left font-normal sm:w-[5rem]">
               <span className="sr-only">軸</span>
             </th>
             {contextOrder.map((context) => (
-              <th key={context} scope="col" className="px-1 py-3 text-center font-normal">
+              <th
+                key={context}
+                scope="col"
+                className="px-0.5 py-3 text-center text-[11px] font-normal whitespace-nowrap sm:text-xs"
+              >
                 {contexts[context].label}
               </th>
             ))}
@@ -115,7 +119,10 @@ function ContextGrid({ model }: { model: DecisionModel }) {
         <tbody>
           {axisOrder.map((axis) => (
             <tr key={axis} className="border-t border-white/5">
-              <th scope="row" className="px-2 py-2 text-left font-normal text-[#ddd4c6]">
+              <th
+                scope="row"
+                className="px-2 py-2 text-left text-[11px] font-normal whitespace-nowrap text-[#ddd4c6] sm:text-xs"
+              >
                 {axes[axis].name}
               </th>
               {contextOrder.map((context) => {
