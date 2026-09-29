@@ -1,0 +1,208 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useJournal } from "@/components/journal-context";
+import { ResetJournal } from "@/components/reset-journal";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { joinContexts } from "@/lib/catalog";
+import { buildModel, type AxisPortrait } from "@/lib/model";
+import { cn } from "cn";
+
+const kindLabel = {
+  thin: "まだ薄い",
+  single: "一つの側",
+  noisy: "場面の中で揺れる",
+  split: "二つに分かれる",
+} as const;
+
+function percent(value: number) {
+  return `${((value + 1) / 2) * 100}%`;
+}
+
+function AxisTrack({ axis }: { axis: AxisPortrait }) {
+  const dots =
+    axis.kind === "split" && axis.low && axis.high
+      ? [
+          { value: axis.low.mean, tone: "sage" as const },
+          { value: axis.high.mean, tone: "heat" as const },
+        ]
+      : axis.mean === null
+        ? []
+        : [{ value: axis.mean, tone: "ink" as const }];
+
+  const plusContexts =
+    axis.high && axis.low
+      ? axis.high.mean >= 0
+        ? axis.high.contexts
+        : axis.low.contexts
+      : [];
+  const minusContexts =
+    axis.high && axis.low
+      ? axis.high.mean >= 0
+        ? axis.low.contexts
+        : axis.high.contexts
+      : [];
+
+  return (
+    <li className="border-t border-white/10 py-5">
+      <div className="flex items-baseline justify-between gap-4">
+        <h3 className="text-base">{axis.name}</h3>
+        <p className="text-xs text-[#b3a898]">
+          {kindLabel[axis.kind]} · 材料 {axis.n}
+        </p>
+      </div>
+      <div className="mt-4 flex justify-between gap-4 text-xs leading-5 text-[#d9d0c3]">
+        <span className="max-w-[46%]">{axis.minusLabel}</span>
+        <span className="max-w-[46%] text-right">{axis.plusLabel}</span>
+      </div>
+      <div className="relative mt-3 h-3">
+        <div className="absolute top-1/2 right-0 left-0 h-px bg-white/20" />
+        {dots.map((dot) => (
+          <span
+            key={`${dot.tone}-${dot.value}`}
+            className={cn(
+              "absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full",
+              dot.tone === "heat" && "bg-[#e25c2a]",
+              dot.tone === "sage" && "bg-[#8eae98]",
+              dot.tone === "ink" && "bg-[#f3ebdd]",
+            )}
+            style={{ left: percent(dot.value) }}
+          />
+        ))}
+      </div>
+      {axis.kind === "split" && (
+        <p className="mt-3 text-xs leading-6 text-[#d9d0c3]">
+          <span className="text-[#e25c2a]">{joinContexts(plusContexts)}</span>
+          {" は「"}
+          {axis.plusLabel}
+          {"」。"}
+          <span className="text-[#8eae98]">{joinContexts(minusContexts)}</span>
+          {" は「"}
+          {axis.minusLabel}
+          {"」。"}
+        </p>
+      )}
+      {axis.kind === "noisy" && (
+        <p className="mt-3 text-xs leading-6 text-[#b3a898]">
+          同じ種類の場面の中でも、選ぶ側が入れ替わっている。
+        </p>
+      )}
+      {axis.n === 0 && (
+        <p className="mt-3 text-xs text-[#8d8478]">この軸に触れる問は、まだない。</p>
+      )}
+    </li>
+  );
+}
+
+export function ModelView() {
+  const { ready, journal } = useJournal();
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
+  const model = buildModel(journal);
+
+  async function copyProse() {
+    try {
+      await navigator.clipboard.writeText(model.prose);
+      setCopied(true);
+      setCopyError(false);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopyError(true);
+    }
+  }
+
+  if (!ready) {
+    return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">記録を開いています</p>;
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-3xl px-5 py-10 md:py-16">
+      <p className="text-sm text-[#e25c2a]">意思決定モデル</p>
+      <div className="paper mt-4 rounded-3xl px-6 py-8 md:px-10 md:py-10">
+        <p className="text-xs text-[#6d645b]">二重人格の可能性</p>
+        <p className="font-mincho mt-2 text-5xl leading-none">{model.possibility}</p>
+        <h1 className="font-mincho mt-6 text-2xl leading-snug md:text-3xl">{model.headline}</h1>
+        <p className="mt-4 text-sm leading-8 text-[#3f3832]">{model.body}</p>
+        <p className="mt-6 text-sm tabular-nums text-[#6d645b]">
+          {model.answered} / {model.total}
+        </p>
+      </div>
+
+      {model.selves && (
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
+          <section className="rounded-3xl border border-[#e25c2a]/40 bg-[#231814] px-5 py-6">
+            <p className="text-xs text-[#e7b5a4]">{model.selves.name}</p>
+            <h2 className="mt-3 text-sm leading-6">{model.selves.a.contexts}</h2>
+            <p className="font-mincho mt-3 text-2xl leading-snug">{model.selves.a.behavior}</p>
+          </section>
+          <section className="rounded-3xl border border-[#8eae98]/40 bg-[#171c19] px-5 py-6">
+            <p className="text-xs text-[#b7cfc0]">{model.selves.name}</p>
+            <h2 className="mt-3 text-sm leading-6">{model.selves.b.contexts}</h2>
+            <p className="font-mincho mt-3 text-2xl leading-snug">{model.selves.b.behavior}</p>
+          </section>
+        </div>
+      )}
+
+      <section className="mt-12">
+        <h2 className="font-mincho text-2xl">八つの軸</h2>
+        <ul className="mt-4">
+          {model.axes.map((axis) => (
+            <AxisTrack key={axis.axis} axis={axis} />
+          ))}
+        </ul>
+      </section>
+
+      <section className="mt-12">
+        <h2 className="font-mincho text-2xl">逆を選んだ組</h2>
+        <p className="mt-3 text-sm leading-7 text-[#d9d0c3]">
+          同じ種類の迷いに、別の場面では反対側で答えている。材料が薄いあいだは、可能性の判定には使わない。
+        </p>
+        {model.swaps.length === 0 ? (
+          <p className="mt-6 text-sm text-[#b3a898]">
+            {model.answered === 0
+              ? "まだ選択がない。"
+              : "いまのところ、同じ迷いの中で反対側には振れていない。"}
+          </p>
+        ) : (
+          <ul className="mt-6 grid gap-4">
+            {model.swaps.map((swap) => (
+              <li key={swap.family} className="rounded-2xl border border-white/10 px-4 py-4">
+                <p className="text-xs text-[#b3a898]">{swap.label}</p>
+                <p className="mt-2 text-sm leading-7">
+                  {joinContexts(swap.plusContexts)}では「{swap.plusName}」。
+                  {joinContexts(swap.minusContexts)}では「{swap.minusName}」。
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="mt-12">
+        <h2 className="font-mincho text-2xl">文章にする</h2>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <Button className="h-11 px-5" onClick={copyProse}>
+            {copied ? "コピーした" : "モデルを文章でコピー"}
+          </Button>
+          <Link
+            href={model.answered === model.total ? "/log" : "/ask"}
+            className={cn(buttonVariants({ variant: "outline" }), "h-11 px-5")}
+          >
+            {model.answered === model.total ? "記録から選び直す" : "問いに戻る"}
+          </Link>
+        </div>
+        {copyError && (
+          <p className="mt-3 text-sm text-[#e7b5a4]">コピーできなかった。下の文章を選択して使える。</p>
+        )}
+        <pre className="mt-5 whitespace-pre-wrap rounded-2xl border border-white/10 px-4 py-4 font-sans text-sm leading-7 text-[#ddd4c6]">
+          {model.prose}
+        </pre>
+      </section>
+
+      <div className="mt-10">
+        <ResetJournal />
+      </div>
+    </div>
+  );
+}
