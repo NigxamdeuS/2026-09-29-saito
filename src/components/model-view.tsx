@@ -10,10 +10,10 @@ import { buildModel, type AxisPortrait, type DecisionModel } from "@/lib/model";
 import { cn } from "cn";
 
 const kindLabel = {
-  thin: "まだ薄い",
-  single: "一つの側",
-  noisy: "場面の中で揺れる",
-  split: "二つに分かれる",
+  thin: "回答不足",
+  single: "一貫している",
+  noisy: "同じ場面の中でもぶれる",
+  split: "場面によって分かれる",
 } as const;
 
 function percent(value: number) {
@@ -49,7 +49,7 @@ function AxisTrack({ axis }: { axis: AxisPortrait }) {
       <div className="flex items-baseline justify-between gap-4">
         <h3 className="text-base">{axis.name}</h3>
         <p className="text-xs text-[#b3a898]">
-          {kindLabel[axis.kind]} · 材料 {axis.n}
+          {kindLabel[axis.kind]} · 回答 {axis.n}問
         </p>
       </div>
       <div className="mt-4 flex justify-between gap-4 text-xs leading-5 text-[#d9d0c3]">
@@ -74,22 +74,22 @@ function AxisTrack({ axis }: { axis: AxisPortrait }) {
       {axis.kind === "split" && (
         <p className="mt-3 text-xs leading-6 text-[#d9d0c3]">
           <span className="text-[#e25c2a]">{joinContexts(plusContexts)}</span>
-          {" は「"}
+          {"では「"}
           {axis.plusLabel}
-          {"」。"}
+          {"」、"}
           <span className="text-[#8eae98]">{joinContexts(minusContexts)}</span>
-          {" は「"}
+          {"では「"}
           {axis.minusLabel}
           {"」。"}
         </p>
       )}
       {axis.kind === "noisy" && (
         <p className="mt-3 text-xs leading-6 text-[#b3a898]">
-          同じ種類の場面の中でも、選ぶ側が入れ替わっている。
+          同じ種類の場面の中でも、選ぶ側が入れ替わっています。
         </p>
       )}
       {axis.n === 0 && (
-        <p className="mt-3 text-xs text-[#8d8478]">この軸に触れる問は、まだない。</p>
+        <p className="mt-3 text-xs text-[#8d8478]">この軸に関する回答は、まだありません。</p>
       )}
     </li>
   );
@@ -99,7 +99,7 @@ function ContextGrid({ model }: { model: DecisionModel }) {
   return (
     <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
       <table className="w-full table-fixed border-collapse text-xs">
-        <caption className="sr-only">軸ごと、場面ごとの寄り</caption>
+        <caption className="sr-only">軸ごと・場面ごとの傾向</caption>
         <thead>
           <tr className="text-[#b3a898]">
             <th scope="col" className="w-[3.75rem] px-2 py-3 text-left font-normal sm:w-[5rem]">
@@ -109,7 +109,7 @@ function ContextGrid({ model }: { model: DecisionModel }) {
               <th
                 key={context}
                 scope="col"
-                className="px-0.5 py-3 text-center text-[11px] font-normal whitespace-nowrap sm:text-xs"
+                className="px-0.5 py-3 text-center text-[10px] font-normal whitespace-nowrap min-[360px]:text-[11px] sm:text-xs"
               >
                 {contexts[context].label}
               </th>
@@ -166,8 +166,8 @@ function ContextGrid({ model }: { model: DecisionModel }) {
         </tbody>
       </table>
       <p className="border-t border-white/10 px-3 py-3 text-xs leading-6 text-[#b3a898]">
-        <span className="text-[#e25c2a]">＋</span> は各軸の一つ目の側(先に動く・自分の側を守る など)、
-        <span className="text-[#8eae98]">−</span> はもう一方の側。列ごとに色が入れ替わるほど、場面で型が分かれている。
+        <span className="text-[#e25c2a]">＋</span>は「{axes.tempo.plus}」「{axes.stake.plus}」などの側、
+        <span className="text-[#8eae98]">−</span>はその反対側です。列によって色が入れ替わるほど、場面ごとに傾向が分かれていることを示します。
       </p>
     </div>
   );
@@ -181,45 +181,45 @@ function Evidence({ model }: { model: DecisionModel }) {
         <h3 className="text-sm">次の選択の予測</h3>
         {predictions.n === 0 ? (
           <p className="mt-3 text-xs leading-6 text-[#b3a898]">
-            同じ軸の答えが一つ貯まると、答える前にモデルが予測を置く。
+            同じ軸の回答が1問たまると、あなたが答える前にモデルが予測を立てるようになります。
           </p>
         ) : (
           <dl className="mt-3 grid gap-2 text-xs">
             <div className="flex justify-between gap-3">
-              <dt className="text-[#d9d0c3]">場面を見るモデル</dt>
+              <dt className="text-[#d9d0c3]">場面を考慮した予測</dt>
               <dd className="tabular-nums">
                 {predictions.contextHits} / {predictions.n}
               </dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-[#d9d0c3]">場面を見ないモデル</dt>
+              <dt className="text-[#d9d0c3]">場面を考慮しない予測</dt>
               <dd className="tabular-nums">
                 {predictions.overallHits} / {predictions.n}
               </dd>
             </div>
             <p className="mt-1 leading-6 text-[#b3a898]">
-              場面を見るほうが当たるなら、選び方は場所に結びついている。
+              場面を考慮した予測のほうがよく当たるなら、選び方が場面に結びついていると考えられます。
             </p>
           </dl>
         )}
       </section>
       <section className="rounded-2xl border border-white/10 px-4 py-5">
-        <h3 className="text-sm">出し直しの一致</h3>
+        <h3 className="text-sm">再確認での一致</h3>
         {consistency.n === 0 ? (
           <p className="mt-3 text-xs leading-6 text-[#b3a898]">
-            15問を超えると、前に出た場面を十問ごとに一つ出し直す。一致が低いと、分かれ方ではなく揺れとして読む。
+            15問を超えると、10問ごとに以前の質問を1問ずつ再出題します。一致率が低い場合は、場面による違いではなく、答えのぶれとして扱います。
           </p>
         ) : (
           <>
             <p className="mt-3 text-xs tabular-nums">
-              {consistency.same} / {consistency.n} で同じ手
+              {consistency.n}問中 {consistency.same}問で同じ答え
             </p>
             <p className="mt-2 text-xs leading-6 text-[#b3a898]">
               {consistency.n < 3
-                ? "三問そろうと、可能性の判断に使う。"
+                ? "3問そろうと、判定に使います。"
                 : (consistency.rate ?? 0) < 0.5
-                  ? "同じ場面でも答えが入れ替わる。いまは型の分かれ方として判断しない。"
-                  : "同じ場面では、同じ手に戻っている。"}
+                  ? "同じ場面でも答えが変わっています。現時点では、場面による分かれ方としては扱いません。"
+                  : "同じ場面では、同じ答えを選んでいます。"}
             </p>
           </>
         )}
@@ -246,7 +246,7 @@ export function ModelView() {
   }
 
   if (!ready) {
-    return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">記録を開いています</p>;
+    return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">記録を読み込んでいます…</p>;
   }
 
   return (
@@ -278,23 +278,23 @@ export function ModelView() {
       )}
 
       <section className="mt-12">
-        <h2 className="font-mincho text-2xl">場面ごとの寄り</h2>
+        <h2 className="font-mincho text-2xl">場面ごとの傾向</h2>
         <p className="mt-3 text-sm leading-7 text-[#d9d0c3]">
-          八つの軸を、五つの場面ごとに並べた。一つの型なら、行の色は場面をまたいで揃う。
+          8つの軸を、5つの場面ごとに並べました。傾向が一貫していれば、各行の色は場面をまたいでそろいます。
         </p>
         <ContextGrid model={model} />
       </section>
 
       <section className="mt-12">
-        <h2 className="font-mincho text-2xl">判断の裏づけ</h2>
+        <h2 className="font-mincho text-2xl">判定の裏づけ</h2>
         <p className="mt-3 text-sm leading-7 text-[#d9d0c3]">
-          分かれ方が本物かは、二つの確かめで見る。場面を知ると予測が当たるか。同じ場面を出し直したとき、同じ手に戻るか。
+          選び方の分かれ方が本物かどうかは、2つの方法で確かめます。場面を考慮すると予測がよく当たるか。同じ質問をもう一度出したとき、同じ答えを選ぶか。
         </p>
         <Evidence model={model} />
       </section>
 
       <section className="mt-12">
-        <h2 className="font-mincho text-2xl">八つの軸</h2>
+        <h2 className="font-mincho text-2xl">8つの軸</h2>
         <ul className="mt-4">
           {model.axes.map((axis) => (
             <AxisTrack key={axis.axis} axis={axis} />
@@ -303,15 +303,15 @@ export function ModelView() {
       </section>
 
       <section className="mt-12">
-        <h2 className="font-mincho text-2xl">逆を選んだ組</h2>
+        <h2 className="font-mincho text-2xl">場面によって逆を選んだもの</h2>
         <p className="mt-3 text-sm leading-7 text-[#d9d0c3]">
-          同じ種類の迷いに、別の場面では反対側で答えている。材料が薄いあいだは、可能性の判定には使わない。
+          同じ種類の迷いに対して、場面によって反対の答えを選んでいるものです。回答が少ないうちは、判定には使いません。
         </p>
         {model.swaps.length === 0 ? (
           <p className="mt-6 text-sm text-[#b3a898]">
             {model.answered === 0
-              ? "まだ選択がない。"
-              : "いまのところ、同じ迷いの中で反対側には振れていない。"}
+              ? "まだ回答がありません。"
+              : "今のところ、同じ種類の迷いで反対の答えを選んだものはありません。"}
           </p>
         ) : (
           <ul className="mt-6 grid gap-4">
@@ -319,7 +319,7 @@ export function ModelView() {
               <li key={swap.family} className="rounded-2xl border border-white/10 px-4 py-4">
                 <p className="text-xs text-[#b3a898]">{swap.label}</p>
                 <p className="mt-2 text-sm leading-7">
-                  {joinContexts(swap.plusContexts)}では「{swap.plusName}」。
+                  {joinContexts(swap.plusContexts)}では「{swap.plusName}」、
                   {joinContexts(swap.minusContexts)}では「{swap.minusName}」。
                 </p>
               </li>
@@ -329,20 +329,22 @@ export function ModelView() {
       </section>
 
       <section className="mt-12">
-        <h2 className="font-mincho text-2xl">文章にする</h2>
+        <h2 className="font-mincho text-2xl">テキストで書き出す</h2>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <Button className="h-11 px-5" onClick={copyProse}>
-            {copied ? "コピーした" : "モデルを文章でコピー"}
+            {copied ? "コピーしました" : "結果をテキストでコピー"}
           </Button>
           <Link
             href={model.answered === model.total ? "/log" : "/ask"}
             className={cn(buttonVariants({ variant: "outline" }), "h-11 px-5")}
           >
-            {model.answered === model.total ? "記録から選び直す" : "問いに戻る"}
+            {model.answered === model.total ? "回答を見直す" : "質問に戻る"}
           </Link>
         </div>
         {copyError && (
-          <p className="mt-3 text-sm text-[#e7b5a4]">コピーできなかった。下の文章を選択して使える。</p>
+          <p className="mt-3 text-sm text-[#e7b5a4]">
+            コピーできませんでした。下のテキストを選択してコピーしてください。
+          </p>
         )}
         <pre className="mt-5 whitespace-pre-wrap rounded-2xl border border-white/10 px-4 py-4 font-sans text-sm leading-7 text-[#ddd4c6]">
           {model.prose}

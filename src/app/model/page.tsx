@@ -1,7 +1,7 @@
 import { ModelView } from "@/components/model-view";
 
 export const metadata = {
-  title: "モデル",
+  title: "結果",
 };
 
 export default function ModelPage() {

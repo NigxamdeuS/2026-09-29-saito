@@ -1,7 +1,7 @@
 import { LogView } from "@/components/log-view";
 
 export const metadata = {
-  title: "記録",
+  title: "回答履歴",
 };
 
 export default function LogPage() {

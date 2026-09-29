@@ -21,7 +21,7 @@ const POLE_VALUE: Record<Pole, number> = { plus: 1, mid: 0, minus: -1 };
 
 export type AxisKind = "thin" | "single" | "noisy" | "split";
 export type Pattern = "thin" | "single" | "noisy" | "splitting" | "dual";
-export type Possibility = "保留" | "低い" | "判断しない" | "ありうる" | "高い";
+export type Possibility = "保留" | "低い" | "判定できない" | "ありうる" | "高い";
 
 export type ContextCluster = {
   mean: number;
@@ -275,21 +275,21 @@ function describeSplit(axis: AxisPortrait): string {
     axis.high.mean >= 0 ? axis.high.contexts : axis.low.contexts;
   const minusContexts =
     axis.high.mean >= 0 ? axis.low.contexts : axis.high.contexts;
-  return `${axis.name}は分かれている。${joinContexts(plusContexts)}では「${axis.plusLabel}」。${joinContexts(minusContexts)}では「${axis.minusLabel}」。`;
+  return `${axis.name}は場面によって分かれています。${joinContexts(plusContexts)}では「${axis.plusLabel}」、${joinContexts(minusContexts)}では「${axis.minusLabel}」を選んでいます。`;
 }
 
 function lean(axis: AxisPortrait): string {
-  if (axis.mean === null || axis.n === 0) return `${axis.name}は、まだ読めない。`;
+  if (axis.mean === null || axis.n === 0) return `${axis.name}：まだ回答がありません。`;
   if (axis.kind === "split") return describeSplit(axis);
   if (axis.kind === "noisy") {
-    return `${axis.name}は、同じ種類の場面の中でも揺れている。`;
+    return `${axis.name}は、同じ種類の場面の中でも答えがぶれています。`;
   }
   if (axis.kind === "thin") {
-    return `${axis.name}は、まだ薄い。`;
+    return `${axis.name}は、まだ判断できるほどの回答がありません。`;
   }
-  if (axis.mean >= 0.45) return `${axis.name}は「${axis.plusLabel}」側に寄っている。`;
-  if (axis.mean <= -0.45) return `${axis.name}は「${axis.minusLabel}」側に寄っている。`;
-  return `${axis.name}は、どちらにも決め切らない中間にある。`;
+  if (axis.mean >= 0.45) return `${axis.name}は「${axis.plusLabel}」傾向があります。`;
+  if (axis.mean <= -0.45) return `${axis.name}は「${axis.minusLabel}」傾向があります。`;
+  return `${axis.name}は、どちらとも言えない中間です。`;
 }
 
 function selvesFrom(axis: AxisPortrait | undefined) {
@@ -397,18 +397,18 @@ function evidenceNotes(predictions: PredictionStats, consistency: Consistency) {
   const notes: string[] = [];
   if (consistency.n > 0) {
     notes.push(
-      `前に出た場面を${consistency.n}問出し直し、${consistency.same}問で同じ手を選んだ。`,
+      `以前の質問を${consistency.n}問再出題し、そのうち${consistency.same}問で同じ答えを選びました。`,
     );
   }
   if (predictions.n >= 8) {
     const gain = predictions.contextHits - predictions.overallHits;
     if (gain >= 2) {
       notes.push(
-        `場面を知っているモデルのほうが、次の選択をよく当てた(${predictions.contextHits}/${predictions.n} と ${predictions.overallHits}/${predictions.n})。`,
+        `場面を考慮した予測のほうが、次の選択をよく当てました（${predictions.contextHits}/${predictions.n}。考慮しない予測は${predictions.overallHits}/${predictions.n}）。`,
       );
     } else {
       notes.push(
-        `次の選択は、場面を見ても見なくても同じくらい当たった(${predictions.contextHits}/${predictions.n} と ${predictions.overallHits}/${predictions.n})。`,
+        `次の選択の予測は、場面を考慮してもしなくても、同じくらいの的中率でした（${predictions.contextHits}/${predictions.n} と ${predictions.overallHits}/${predictions.n}）。`,
       );
     }
   }
@@ -416,17 +416,17 @@ function evidenceNotes(predictions: PredictionStats, consistency: Consistency) {
 }
 
 const headlines: Record<Pattern, string> = {
-  thin: "まだ、可能性は判断しない",
-  single: "場面が変わっても、選ぶ側は安定している",
-  noisy: "型になる前のばらつきが先に出ている",
-  splitting: "いくつかの場面で、選ぶ側が分かれはじめている",
-  dual: "状況によって、もう一つの判断の型が顔を出す",
+  thin: "判定するには、まだ回答が足りません",
+  single: "場面が変わっても、選び方は一貫しています",
+  noisy: "はっきりした傾向より先に、答えのぶれが目立っています",
+  splitting: "いくつかの場面で、選び方が分かれ始めています",
+  dual: "場面によって、もう一つの判断の傾向が現れます",
 };
 
 const possibilities: Record<Pattern, Possibility> = {
   thin: "保留",
   single: "低い",
-  noisy: "判断しない",
+  noisy: "判定できない",
   splitting: "ありうる",
   dual: "高い",
 };
@@ -444,32 +444,32 @@ function bodyFor(
     .join("");
 
   if (pattern === "thin") {
-    return `同じ種類の場面がそろうまで、二重人格の可能性は判断しない。100問のうち${answered}問。入れ替わりの断片は、あれば下に残す。それはまだ判定ではない。`;
+    return `同じ種類の場面の回答がそろうまで、二重人格の可能性は判定しません。現在の回答は100問中${answered}問です。場面によって逆の答えを選んだものがあれば下に表示しますが、まだ判定には使いません。`;
   }
   if (pattern === "single") {
-    return `いま読める軸では、場面が変わっても同じ側に手が伸びている。一つの判断の型として読める。回答は${answered}問。まだ出ていない種類の場面で、分かれる余地は残っている。`;
+    return `今読み取れる範囲では、場面が変わっても同じ側を選んでいて、一つの判断の傾向として読み取れます（回答${answered}問）。ただし、まだ答えていない場面で分かれる可能性は残っています。`;
   }
   if (pattern === "noisy") {
-    return "選ぶ側が、同じ種類の場面の中でも入れ替わっている。まだ型になる前のばらつきです。二重人格の可能性は、このばらつきが場所ごとに分かれるまで判断しない。";
+    return "同じ種類の場面の中でも、選ぶ側が入れ替わっています。傾向と呼べる段階の手前の、答えのぶれです。このぶれが場面ごとにはっきり分かれるまで、二重人格の可能性は判定しません。";
   }
   if (pattern === "splitting") {
-    return `${evidence}一つの型には収まりきらない。ただ、同じ分かれ方が複数の軸で揃い、材料が厚くなるまでは「ありうる」にとどめる。疾患の診断ではない。`;
+    return `${evidence}一つの傾向には収まりきっていません。ただ、同じような分かれ方が複数の軸でそろい、回答が十分にたまるまでは「ありうる」にとどめます。これは疾患の診断ではありません。`;
   }
-  return `${evidence}ばらつきではなく、状況に結びついた二つの型として読める。これは疾患の診断ではない。選択の蓄積が、二つに分かれたというモデル上の判断です。`;
+  return `${evidence}単なるぶれではなく、場面に結びついた二つの判断の傾向として読み取れます。これは疾患の診断ではなく、選択の積み重ねが二つに分かれているというモデル上の判定です。`;
 }
 
 function proseFor(model: Omit<DecisionModel, "prose">) {
   const lines = [
     "二重人格 — 意思決定モデル",
-    `回答 ${model.answered}/${model.total}`,
-    `二重人格の可能性: ${model.possibility}`,
+    `回答：${model.answered}/${model.total}問`,
+    `二重人格の可能性：${model.possibility}`,
     model.headline,
     model.body,
     "",
-    "軸",
+    "【軸ごとの傾向】",
     ...model.axes.map((axis) => lean(axis)),
   ];
-  lines.push("", "場面ごとの寄り");
+  lines.push("", "【場面ごとの傾向】");
   for (const context of contextOrder) {
     const leaning = model.axes
       .map((axis) => {
@@ -479,20 +479,20 @@ function proseFor(model: Omit<DecisionModel, "prose">) {
       })
       .filter((label): label is string => label !== null);
     if (leaning.length > 0) {
-      lines.push(`${contexts[context].label}: ${leaning.join("、")}`);
+      lines.push(`${contexts[context].label}：${leaning.join("、")}`);
     }
   }
   if (model.swaps.length > 0) {
-    lines.push("", "逆を選んだ組");
+    lines.push("", "【場面によって逆を選んだもの】");
     for (const swap of model.swaps) {
       lines.push(
-        `${swap.label}: ${joinContexts(swap.plusContexts)}では「${swap.plusName}」。${joinContexts(swap.minusContexts)}では「${swap.minusName}」。`,
+        `${swap.label}：${joinContexts(swap.plusContexts)}では「${swap.plusName}」、${joinContexts(swap.minusContexts)}では「${swap.minusName}」。`,
       );
     }
   }
   lines.push(
     "",
-    "これは医学的な診断ではない。解離性同一性症などの疾患を判定せず、状況ごとの選択から意思決定の型を読んでいる。",
+    "これは医学的な診断ではありません。解離性同一性症などの疾患を判定するものではなく、状況ごとの選択から意思決定の傾向を読み取ったものです。",
   );
   return lines.join("\n");
 }

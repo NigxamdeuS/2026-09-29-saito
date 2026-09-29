@@ -28,7 +28,7 @@ export function JournalTransfer() {
     link.download = `nijuu-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    setMessage({ tone: "ok", text: `${answered}問ぶんの記録を書き出した。` });
+    setMessage({ tone: "ok", text: `${answered}問分の記録を書き出しました。` });
   }
 
   async function readFile(file: File) {
@@ -36,21 +36,24 @@ export function JournalTransfer() {
       const parsed = JSON.parse(await file.text());
       const cleaned = sanitizeJournal(parsed);
       if (Object.keys(cleaned.answers).length === 0) {
-        setMessage({ tone: "error", text: "このファイルには、読める回答がなかった。" });
+        setMessage({ tone: "error", text: "このファイルには、読み込める回答がありませんでした。" });
         return;
       }
       setPending(cleaned);
       setMessage(null);
     } catch {
-      setMessage({ tone: "error", text: "読めないファイルだった。二重人格から書き出した JSON を選ぶ。" });
+      setMessage({
+        tone: "error",
+        text: "ファイルを読み込めませんでした。このアプリから書き出した JSON ファイルを選んでください。",
+      });
     }
   }
 
   return (
     <section className="mt-12 rounded-2xl border border-white/10 px-4 py-5">
-      <h2 className="text-sm">記録の持ち出し</h2>
+      <h2 className="text-sm">記録のバックアップと移行</h2>
       <p className="mt-2 text-xs leading-6 text-[#b3a898]">
-        記録はこのブラウザの中だけにある。別の端末へ移すときや、控えを残すときに使う。
+        記録はこのブラウザの中にだけ保存されています。別の端末に移したいときや、控えを残しておきたいときに使ってください。
       </p>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <Button variant="outline" className="h-10" disabled={answered === 0} onClick={exportJournal}>
@@ -84,15 +87,15 @@ export function JournalTransfer() {
       <Dialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
         <DialogContent className="paper">
           <DialogHeader>
-            <DialogTitle className="font-mincho text-xl">記録を置き換える</DialogTitle>
+            <DialogTitle className="font-mincho text-xl">記録を置き換えますか？</DialogTitle>
             <DialogDescription>
-              読み込んだ記録は{pending ? Object.keys(pending.answers).length : 0}問。いまの{answered}
-              問は、読み込んだ記録に置き換わる。
+              読み込んだ記録は{pending ? Object.keys(pending.answers).length : 0}問分です。今の
+              {answered}問分の記録は、読み込んだ記録に置き換わります。
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="outline" className="h-10" onClick={() => setPending(null)}>
-              やめる
+              キャンセル
             </Button>
             <Button
               className="h-10"
@@ -101,7 +104,7 @@ export function JournalTransfer() {
                 const count = Object.keys(pending.answers).length;
                 replace(pending);
                 setPending(null);
-                setMessage({ tone: "ok", text: `${count}問の記録を読み込んだ。` });
+                setMessage({ tone: "ok", text: `${count}問分の記録を読み込みました。` });
               }}
             >
               置き換える

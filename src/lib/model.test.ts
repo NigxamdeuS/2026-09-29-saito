@@ -66,7 +66,7 @@ describe("意思決定モデル", () => {
     const model = buildModel(emptyJournal());
     assert.equal(model.pattern, "thin");
     assert.equal(model.possibility, "保留");
-    assert.equal(model.headline, "まだ、可能性は判断しない");
+    assert.equal(model.headline, "判定するには、まだ回答が足りません");
     assert.equal(model.swaps.length, 0);
     assert.equal(model.selves, null);
   });
@@ -89,7 +89,7 @@ describe("意思決定モデル", () => {
     const model = buildModel(journalFrom(() => "plus"));
     assert.equal(model.pattern, "single");
     assert.equal(model.possibility, "低い");
-    assert.equal(model.headline, "場面が変わっても、選ぶ側は安定している");
+    assert.equal(model.headline, "場面が変わっても、選び方は一貫しています");
     assert.equal(model.swaps.length, 0);
     assert.ok(model.axes.every((axis) => axis.kind === "single"));
   });
@@ -99,15 +99,15 @@ describe("意思決定モデル", () => {
     assert.equal(model.answered, 100);
     assert.equal(model.pattern, "dual");
     assert.equal(model.possibility, "高い");
-    assert.equal(model.headline, "状況によって、もう一つの判断の型が顔を出す");
+    assert.equal(model.headline, "場面によって、もう一つの判断の傾向が現れます");
     assert.ok(model.axes.every((axis) => axis.kind === "split"));
-    assert.match(model.body, /速さは分かれている。仕事・人前・お金では「先に動く」/);
-    assert.match(model.body, /親しい人・一人では「置いてから動く」/);
-    assert.equal(model.selves?.a.behavior, "先に動く");
-    assert.equal(model.selves?.b.behavior, "置いてから動く");
+    assert.match(model.body, /速さは場面によって分かれています。仕事・人前・お金では「すぐ動く」/);
+    assert.match(model.body, /親しい人・一人では「様子を見てから動く」/);
+    assert.equal(model.selves?.a.behavior, "すぐ動く");
+    assert.equal(model.selves?.b.behavior, "様子を見てから動く");
     assert.equal(model.swaps.length, 20);
-    assert.match(model.prose, /二重人格の可能性: 高い/);
-    assert.match(model.prose, /疾患の診断ではない/);
+    assert.match(model.prose, /二重人格の可能性：高い/);
+    assert.match(model.prose, /医学的な診断ではありません/);
   });
 
   it("二つの軸だけが分かれ、24問未満ならありうるにとどめる", () => {
@@ -151,8 +151,8 @@ describe("意思決定モデル", () => {
       }),
     );
     assert.equal(model.pattern, "noisy");
-    assert.equal(model.possibility, "判断しない");
-    assert.equal(model.headline, "型になる前のばらつきが先に出ている");
+    assert.equal(model.possibility, "判定できない");
+    assert.equal(model.headline, "はっきりした傾向より先に、答えのぶれが目立っています");
     assert.ok(model.axes.every((axis) => axis.kind !== "split"));
   });
 
@@ -190,7 +190,7 @@ describe("確かめと予測", () => {
     const model = buildModel(journal);
     assert.equal(model.consistency.rate, 0.25);
     assert.equal(model.pattern, "noisy");
-    assert.equal(model.possibility, "判断しない");
+    assert.equal(model.possibility, "判定できない");
     assert.equal(model.selves, null);
   });
 
@@ -213,7 +213,7 @@ describe("確かめと予測", () => {
     );
     const model = buildModel(journal);
     assert.equal(model.pattern, "dual");
-    assert.match(model.body, /4問出し直し、4問で同じ手/);
+    assert.match(model.body, /4問再出題し、そのうち4問で同じ答え/);
   });
 
   it("場面ごとに分かれた記録では、場面を見る予測が当たり、見ない予測は外れる", () => {

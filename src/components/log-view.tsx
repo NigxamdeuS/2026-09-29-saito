@@ -19,7 +19,7 @@ export function LogView() {
   const { ready, journal } = useJournal();
 
   if (!ready) {
-    return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">記録を開いています</p>;
+    return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">記録を読み込んでいます…</p>;
   }
 
   const entries = QUESTION_ORDER.flatMap((question) => {
@@ -39,17 +39,19 @@ export function LogView() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 py-10 md:py-16">
-      <h1 className="font-mincho text-4xl">記録</h1>
+      <h1 className="font-mincho text-4xl">回答履歴</h1>
       <p className="mt-4 max-w-xl text-sm leading-7 text-[#d9d0c3]">
-        選んだ手の一覧。選び直すと、意思決定モデルはその場で組み直される。
+        これまでに選んだ答えの一覧です。答えを選び直すと、意思決定モデルもすぐに作り直されます。
       </p>
 
       {entries.length === 0 ? (
         <div className="paper mt-8 rounded-3xl px-6 py-8">
-          <p className="font-mincho text-2xl">まだ選んでいない。</p>
-          <p className="mt-3 text-sm leading-7 text-[#3f3832]">問いは、一区切り五問。答えはここに残る。</p>
+          <p className="font-mincho text-2xl">まだ回答がありません。</p>
+          <p className="mt-3 text-sm leading-7 text-[#3f3832]">
+            質問は5問ずつ出ます。答えはここに記録されます。
+          </p>
           <Link href="/ask" className={cn(buttonVariants(), "mt-6 h-12 px-6")}>
-            問いに入る
+            はじめる
           </Link>
         </div>
       ) : (
@@ -72,8 +74,8 @@ export function LogView() {
                       {check && (
                         <p className="mt-2 text-xs leading-6 text-[#b3a898]">
                           {check.pole === check.original
-                            ? "出し直しでも、同じ手を選んだ。"
-                            : `出し直しでは「${question.choices[check.pole]}」を選んだ。`}
+                            ? "再確認でも、同じ答えを選びました。"
+                            : `再確認では「${question.choices[check.pole]}」を選びました。`}
                         </p>
                       )}
                       <Link
