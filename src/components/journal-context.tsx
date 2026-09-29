@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { emptyJournal, type Journal, type Pole } from "@/lib/catalog";
 import { loadJournal, saveJournal } from "@/lib/storage";
 
@@ -14,86 +14,53 @@ type JournalApi = {
 };
 
 const JournalContext = createContext<JournalApi | null>(null);
-const serverJournal = emptyJournal();
-const listeners = new Set<() => void>();
-
-let memory = serverJournal;
-let hydrated = false;
-
-function emit() {
-  for (const listener of listeners) listener();
-}
-
-function hydrate() {
-  if (hydrated || typeof window === "undefined") return;
-  hydrated = true;
-  memory = loadJournal();
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-function getSnapshot() {
-  hydrate();
-  return memory;
-}
-
-function getServerSnapshot() {
-  return serverJournal;
-}
-
-function subscribeIdle() {
-  return () => {};
-}
-
-function pendingOnClient() {
-  return false;
-}
-
-function pendingOnServer() {
-  return true;
-}
-
-function writeJournal(next: Journal) {
-  memory = next;
-  const saved = saveJournal(next);
-  emit();
-  return saved;
-}
 
 export function JournalProvider({ children }: { children: React.ReactNode }) {
-  const journal = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  const pending = useSyncExternalStore(subscribeIdle, pendingOnClient, pendingOnServer);
+  const [journal, setJournal] = useState<Journal>(emptyJournal);
+  const [ready, setReady] = useState(false);
   const [persistError, setPersistError] = useState(false);
+  const journalRef = useRef(journal);
+
+  useEffect(() => {
+    const loaded = loadJournal();
+    journalRef.current = loaded;
+    const timer = window.setTimeout(() => {
+      setJournal(loaded);
+      setReady(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const api = useMemo<JournalApi>(() => {
     const commit = (next: Journal) => {
-      setPersistError(!writeJournal(next));
+      journalRef.current = next;
+      setJournal(next);
+      setPersistError(!saveJournal(next));
     };
 
     return {
-      ready: !pending,
+      ready,
       journal,
       persistError,
       answer: (questionId, pole) => {
+        const current = journalRef.current;
         commit({
-          ...memory,
+          ...current,
           answers: {
-            ...memory.answers,
+            ...current.answers,
             [questionId]: { pole, updatedAt: new Date().toISOString() },
           },
-          deferred: memory.deferred.filter((id) => id !== questionId),
+          deferred: current.deferred.filter((id) => id !== questionId),
         });
       },
       defer: (questionId) => {
-        if (memory.answers[questionId] || memory.deferred.includes(questionId)) return;
-        commit({ ...memory, deferred: [...memory.deferred, questionId] });
+        const current = journalRef.current;
+        if (current.answers[questionId] || current.deferred.includes(questionId)) return;
+        commit({ ...current, deferred: [...current.deferred, questionId] });
       },
       reset: () => commit(emptyJournal()),
     };
-  }, [journal, pending, persistError]);
+  }, [journal, persistError, ready]);
 
   return <JournalContext.Provider value={api}>{children}</JournalContext.Provider>;
 }
