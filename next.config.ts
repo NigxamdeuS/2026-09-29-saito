@@ -5,6 +5,12 @@ const nextConfig: NextConfig = {
   // the bind host. Without this, the HMR socket is rejected and the app
   // never leaves the server-rendered shell.
   allowedDevOrigins: ["127.0.0.1"],
+  experimental: {
+    serverActions: {
+      // Contact form attachments: up to 5MB of text files plus multipart overhead.
+      bodySizeLimit: "6mb",
+    },
+  },
 };
 
 export default nextConfig;
