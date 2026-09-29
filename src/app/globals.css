@@ -129,6 +129,7 @@
       radial-gradient(980px 460px at 0% -8%, rgba(226, 92, 42, 0.16), transparent 55%),
       radial-gradient(760px 420px at 100% 0%, rgba(142, 174, 152, 0.12), transparent 48%);
     background-attachment: fixed;
+    overflow-wrap: anywhere;
   }
   html {
     @apply font-sans;

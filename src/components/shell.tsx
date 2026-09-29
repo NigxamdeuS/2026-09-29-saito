@@ -7,9 +7,9 @@ import { buildModel } from "@/lib/model";
 import { cn } from "cn";
 
 const links = [
-  { href: "/ask", label: "問う" },
-  { href: "/model", label: "モデル" },
-  { href: "/log", label: "記録" },
+  { href: "/ask", label: "答える" },
+  { href: "/model", label: "結果" },
+  { href: "/log", label: "履歴" },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -20,18 +20,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <header className="border-b border-white/10">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 px-5 py-4">
-          <Link href="/" className="font-mincho text-lg tracking-wide">
+        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-5 py-2 sm:gap-4">
+          <Link href="/" className="font-mincho shrink-0 py-2 text-lg tracking-wide">
             二重人格
           </Link>
-          <nav className="flex items-center gap-4 text-sm">
+          <nav className="flex items-center gap-1 text-sm sm:gap-2">
             {links.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 aria-current={pathname === link.href ? "page" : undefined}
                 className={cn(
-                  "underline-offset-4 hover:underline",
+                  "px-1.5 py-3 underline-offset-4 hover:underline sm:px-2",
                   pathname === link.href ? "text-[#f3ebdd]" : "text-[#b3a898]",
                 )}
               >
@@ -39,7 +39,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
             {answered !== null && (
-              <span className="tabular-nums text-[#b3a898]">{answered}/100</span>
+              <span className="pl-1 tabular-nums text-[#b3a898]">{answered}/100</span>
             )}
           </nav>
         </div>
@@ -49,12 +49,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
           role="alert"
           className="mx-auto w-full max-w-3xl px-5 pt-4 text-sm leading-6 text-[#e7b5a4]"
         >
-          このブラウザには記録を残せませんでした。タブを閉じると、今回の選択は消えます。
+          このブラウザに記録を保存できませんでした。タブを閉じると、今回の回答は消えてしまいます。
         </p>
       )}
       <main className="flex-1">{children}</main>
       <footer className="mx-auto w-full max-w-3xl px-5 py-10 text-xs leading-6 text-[#8d8478]">
-        これは医学的な診断ではない。解離性同一性症などの疾患を判定せず、状況ごとの選択から、意思決定の型と、その型が二つに分かれる度合いを読む。
+        <p>
+          これは医学的な診断ではありません。解離性同一性症などの疾患を判定するものではなく、状況ごとの選択から、意思決定の傾向と、それが場面によって二つに分かれる度合いを読み取るものです。
+        </p>
+        <Link href="/contact" className="mt-1 inline-block py-2 underline-offset-4 hover:underline">
+          お問い合わせ
+        </Link>
       </footer>
     </>
   );
