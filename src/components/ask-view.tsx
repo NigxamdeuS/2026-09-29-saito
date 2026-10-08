@@ -5,60 +5,61 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useJournal } from "@/components/journal-context";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { contexts, type Journal, type Pole } from "@/lib/catalog";
-import { buildModel, predictFor } from "@/lib/model";
-import { displayPoles, getQuestion, nextRound, type RoundItem } from "@/lib/questions";
+import {
+  answeredCount,
+  heldCount,
+  MAX_NOTE_LENGTH,
+  nextRound,
+  type Choice,
+  type Journal,
+} from "@/lib/journal";
+import { getQuestion, TOTAL_QUESTIONS } from "@/lib/questions";
 import { cn } from "cn";
 
 type Phase = "ask" | "break" | "done";
 
 type Round = {
-  items: RoundItem[];
+  ids: string[];
   cursor: number;
   saved: number;
-  predicted: number;
-  hits: number;
   phase: Phase;
 };
 
+type Draft = {
+  key: string;
+  choice: Choice | null;
+  note: string;
+};
+
 function openRound(journal: Journal): Round {
-  const items = nextRound(journal);
-  return {
-    items,
-    cursor: 0,
-    saved: 0,
-    predicted: 0,
-    hits: 0,
-    phase: items.length === 0 ? "done" : "ask",
-  };
+  const ids = nextRound(journal);
+  return { ids, cursor: 0, saved: 0, phase: ids.length === 0 ? "done" : "ask" };
+}
+
+function isTyping(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    (target.tagName === "TEXTAREA" || target.tagName === "INPUT" || target.isContentEditable)
+  );
 }
 
 export function AskView() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("q");
-  const { ready, journal, answer, retest, defer } = useJournal();
+  const { ready, journal, answer } = useJournal();
   const router = useRouter();
   const [round, setRound] = useState<Round | null>(null);
-  const [picked, setPicked] = useState<{ id: string; pole: Pole | null }>({
-    id: "",
-    pole: null,
-  });
+  const [draft, setDraft] = useState<Draft>({ key: "", choice: null, note: "" });
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   if (ready && !editId && round === null) {
     setRound(openRound(journal));
   }
 
-  const item: RoundItem | undefined = editId
-    ? { id: editId, retest: false }
-    : round?.items[round.cursor];
-  const questionId = item?.id ?? "";
-  const pickKey = `${questionId}:${item?.retest ? "retest" : "answer"}`;
-  if (pickKey !== picked.id) {
-    setPicked({
-      id: pickKey,
-      pole: editId ? (journal.answers[editId]?.pole ?? null) : null,
-    });
+  const questionId = editId ?? round?.ids[round.cursor] ?? "";
+  if (ready && questionId !== draft.key) {
+    const saved = editId ? journal.answers[editId] : undefined;
+    setDraft({ key: questionId, choice: saved?.choice ?? null, note: saved?.note ?? "" });
   }
 
   const question = questionId ? getQuestion(questionId) : undefined;
@@ -67,80 +68,51 @@ export function AskView() {
   useEffect(() => {
     headingRef.current?.focus();
     if (questionId) window.scrollTo(0, 0);
-  }, [pickKey, phase, questionId]);
+  }, [phase, questionId]);
 
-  function advance(outcome: { saved: boolean; predicted: boolean; hit: boolean }) {
-    setRound((current) => {
-      if (!current) return current;
-      const next = {
-        ...current,
-        saved: current.saved + (outcome.saved ? 1 : 0),
-        predicted: current.predicted + (outcome.predicted ? 1 : 0),
-        hits: current.hits + (outcome.hit ? 1 : 0),
-      };
-      if (current.cursor + 1 >= current.items.length) {
-        return { ...next, phase: "break" };
-      }
-      return { ...next, cursor: current.cursor + 1, phase: "ask" };
-    });
-  }
-
-  function choose(pole: Pole) {
-    if (!question || !item) return;
-    if (item.retest) {
-      retest(question.id, pole);
-      advance({ saved: true, predicted: false, hit: false });
-      return;
-    }
-    const firstTime = !journal.answers[question.id];
-    const prediction = firstTime ? predictFor(journal, question) : null;
-    answer(question.id, pole);
+  function submit() {
+    if (!question || draft.choice === null) return;
+    answer(question.id, draft.choice, draft.note);
     if (editId) {
       router.push("/log");
       return;
     }
-    advance({
-      saved: true,
-      predicted: prediction !== null,
-      hit: prediction?.context === pole,
+    setRound((current) => {
+      if (!current) return current;
+      const saved = current.saved + 1;
+      if (current.cursor + 1 >= current.ids.length) return { ...current, saved, phase: "break" };
+      return { ...current, saved, cursor: current.cursor + 1 };
     });
   }
 
-  function skip() {
-    if (!question || !item) return;
-    if (!item.retest) defer(question.id);
-    advance({ saved: false, predicted: false, hit: false });
-  }
-
-  const chooseRef = useRef(choose);
+  const submitRef = useRef(submit);
   useEffect(() => {
-    chooseRef.current = choose;
+    submitRef.current = submit;
   });
 
   useEffect(() => {
     if (!question || phase !== "ask") return;
-    const poles = displayPoles(question.id);
-    const current = question;
+    const key = question.id;
     function onKey(event: KeyboardEvent) {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
       if (event.key === "1" || event.key === "2" || event.key === "3") {
         event.preventDefault();
-        setPicked({ id: pickKey, pole: poles[Number(event.key) - 1] });
+        const choice = Number(event.key) as Choice;
+        setDraft((current) => (current.key === key ? { ...current, choice } : current));
       }
       if (
         event.key === "Enter" &&
-        picked.pole &&
         event.target instanceof HTMLElement &&
         event.target.tagName !== "BUTTON" &&
         event.target.tagName !== "A"
       ) {
         event.preventDefault();
-        if (current.id === questionId) chooseRef.current(picked.pole);
+        submitRef.current();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [question, phase, picked.pole, pickKey, questionId]);
+  }, [question, phase]);
 
   if (!ready || (!editId && round === null)) {
     return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">記録を読み込んでいます…</p>;
@@ -163,16 +135,13 @@ export function AskView() {
         <div className="paper rounded-3xl px-6 py-10 md:px-10">
           <h1 className="font-mincho text-4xl leading-tight">100問すべてに答えました。</h1>
           <p className="mt-4 leading-8 text-[#3f3832]">
-            意思決定モデルは、今の回答をもとに作られています。履歴から答えを選び直すと、モデルも作り直されます。
+            まとめでは、条件を変えた質問での答えを並べて見られます。履歴から、答えや理由を書き直すこともできます。
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href="/model" className={cn(buttonVariants(), "h-12 px-6")}>
-              結果を見る
+              まとめを見る
             </Link>
-            <Link
-              href="/log"
-              className={cn(buttonVariants({ variant: "outline" }), "h-12 px-6")}
-            >
+            <Link href="/log" className={cn(buttonVariants({ variant: "outline" }), "h-12 px-6")}>
               回答を見直す
             </Link>
           </div>
@@ -182,7 +151,7 @@ export function AskView() {
   }
 
   if (!editId && phase === "break" && round) {
-    const model = buildModel(journal);
+    const answered = answeredCount(journal);
     return (
       <section className="mx-auto w-full max-w-3xl px-5 py-16">
         <div className="paper rounded-3xl px-6 py-10 md:px-10">
@@ -191,37 +160,29 @@ export function AskView() {
             tabIndex={-1}
             className="font-mincho text-4xl leading-tight outline-none"
           >
-            {round.saved > 0
-              ? `今回の${round.items.length}問が終わりました。`
-              : `今回の${round.items.length}問はすべて保留しました。`}
+            {`今回の${round.ids.length}問が終わりました。`}
           </h1>
           <p className="mt-4 leading-8 text-[#3f3832]">
-            {round.saved > 0
-              ? `今回答えたのは${round.saved}問です。モデルはここまでの回答で更新されています（合計${model.answered}問）。`
-              : "回答はまだ増えていません。保留した質問は、あとでもう一度出てきます。"}
+            {`ここまでの回答は${answered}/${TOTAL_QUESTIONS}問です（うち保留${heldCount(journal)}問）。100問を一度に答える必要はありません。続きは、次に開いたときにここから始まります。`}
           </p>
-          {round.predicted > 0 && (
-            <p className="mt-3 text-sm leading-7 text-[#3f3832]">
-              あなたが答える前に、モデルは{round.predicted}問の選択を予測していました。当たったのは{round.hits}問です。
-            </p>
-          )}
-          <div className="mt-6 flex items-baseline gap-3 border-t border-black/10 pt-5">
-            <p className="text-xs text-[#6d645b]">現在の可能性</p>
-            <p className="font-mincho text-2xl">{model.possibility}</p>
-          </div>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button className="h-12 px-6" onClick={() => setRound(openRound(journal))}>
-              次の5問へ
-            </Button>
+            {answered < TOTAL_QUESTIONS && (
+              <Button className="h-12 px-6" onClick={() => setRound(openRound(journal))}>
+                次の5問へ
+              </Button>
+            )}
             <Link
               href="/model"
-              className={cn(buttonVariants({ variant: "outline" }), "h-12 px-6")}
+              className={cn(
+                buttonVariants({ variant: answered < TOTAL_QUESTIONS ? "outline" : "default" }),
+                "h-12 px-6",
+              )}
             >
-              結果を見る
+              まとめを見る
             </Link>
           </div>
           <Link
-            href="/"
+            href="/scenes"
             className="mt-6 inline-block text-sm text-[#6d645b] underline-offset-4 hover:underline"
           >
             今日はここまでにする
@@ -231,85 +192,103 @@ export function AskView() {
     );
   }
 
-  if (!question || !item) {
+  if (!question) {
     return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">質問を読み込んでいます…</p>;
   }
 
-  const poles = displayPoles(question.id);
-  const answered = Object.keys(journal.answers).length;
-  const context = contexts[question.context];
-  const selected = picked.pole;
+  const options: { choice: Choice; label: string; text: string }[] = [
+    ...question.choices.map((text, index) => ({
+      choice: (index + 1) as Choice,
+      label: String(index + 1),
+      text,
+    })),
+    { choice: "hold", label: "保留", text: "どれも当てはまらない・条件が足りず決められない" },
+  ];
 
   return (
     <section className="mx-auto w-full max-w-3xl px-5 py-8 md:py-14">
       <article className="paper rounded-3xl px-5 py-8 md:px-10 md:py-12">
         <div className="flex flex-wrap items-baseline justify-between gap-3 text-xs">
           <p>
-            <span className="text-[#c4552a]">{context.label}</span>
-            <span className="text-[#6d645b]"> / {context.hint}</span>
+            <span className="text-[#c4552a]">{question.category}</span>
+            <span className="text-[#6d645b]">／{question.topic}</span>
           </p>
           <p className="tabular-nums text-[#6d645b]">
             {editId
-              ? "選び直し"
-              : `今回 ${(round?.cursor ?? 0) + 1}/${round?.items.length ?? 0} · 全体 ${answered}/100`}
+              ? `第${question.number}問／${TOTAL_QUESTIONS} · 選び直し`
+              : `第${question.number}問／${TOTAL_QUESTIONS} · 今回 ${(round?.cursor ?? 0) + 1}/${round?.ids.length ?? 0}`}
           </p>
         </div>
-        {item.retest && (
-          <p className="mt-6 rounded-xl bg-[#1c1712]/5 px-3 py-2 text-xs leading-6 text-[#3f3832]">
-            再確認の質問です。以前にも出た場面を、もう一度出しています。前の答えは気にせず、今の気持ちで選んでください。
-          </p>
-        )}
         <h1
           ref={headingRef}
           tabIndex={-1}
-          className="font-mincho mt-8 text-[1.55rem] leading-[1.6] font-medium outline-none md:text-[2rem]"
+          className="font-mincho mt-8 text-[1.45rem] leading-[1.65] font-medium outline-none md:text-[1.85rem]"
         >
           {question.situation}
         </h1>
-        <div role="radiogroup" aria-label="この場面での選択" className="mt-8 grid gap-3">
-          {poles.map((pole, index) => {
-            const active = selected === pole;
+        <div role="radiogroup" aria-label="この場面で取りそうな行動" className="mt-8 grid gap-3">
+          {options.map((option) => {
+            const active = draft.choice === option.choice;
+            const hold = option.choice === "hold";
             return (
               <button
-                key={pole}
+                key={option.label}
                 type="button"
                 role="radio"
                 aria-checked={active}
-                onClick={() => setPicked({ id: pickKey, pole })}
+                onClick={() => setDraft((current) => ({ ...current, choice: option.choice }))}
                 className={cn(
-                  "rounded-2xl border px-4 py-4 text-left text-[15px] leading-7 transition",
+                  "flex items-baseline rounded-2xl border px-4 py-4 text-left text-[15px] leading-7 transition",
+                  hold && "border-dashed",
                   active
                     ? "border-[#1c1712] bg-[#1c1712] text-[#f3ebdd]"
-                    : "border-black/10 hover:border-black/30",
+                    : hold
+                      ? "border-black/20 text-[#3f3832] hover:border-black/40"
+                      : "border-black/10 hover:border-black/30",
                 )}
               >
-                <span className="font-mincho mr-3 text-sm opacity-60">{index + 1}</span>
-                {question.choices[pole]}
+                <span className="font-mincho mr-3 shrink-0 text-sm opacity-60">{option.label}</span>
+                <span className={cn(hold && "text-sm")}>{option.text}</span>
               </button>
             );
           })}
         </div>
+        <div className="mt-6">
+          <label htmlFor="answer-note" className="text-sm font-medium">
+            理由・補足<span className="ml-2 text-xs font-normal text-[#6d645b]">任意</span>
+          </label>
+          <p id="answer-note-help" className="mt-1 text-xs leading-6 text-[#6d645b]">
+            {draft.choice === "hold"
+              ? "決められなかった理由や、足りなかった条件を書けます。"
+              : "迷った点や、どんな条件なら別の行動を選ぶかを書いても構いません。"}
+          </p>
+          <textarea
+            id="answer-note"
+            rows={3}
+            maxLength={MAX_NOTE_LENGTH}
+            value={draft.note}
+            onChange={(event) => {
+              const note = event.target.value;
+              setDraft((current) => ({ ...current, note }));
+            }}
+            aria-describedby="answer-note-help"
+            className="mt-2 w-full resize-y rounded-xl border border-black/15 bg-white/60 px-3 py-2.5 text-base leading-7 outline-none transition focus:border-[#c4552a] focus:ring-3 focus:ring-[#c4552a]/20 sm:text-[15px]"
+          />
+        </div>
         <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {editId ? (
-            <Link href="/log" className="text-sm text-[#6d645b] underline-offset-4 hover:underline">
-              履歴に戻る
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={skip}
-              className="text-left text-sm text-[#6d645b] underline-offset-4 hover:underline"
-            >
-              {item.retest ? "この再確認を飛ばす" : "保留して次へ"}
-            </button>
-          )}
-          <Button className="h-12 px-6" disabled={!selected} onClick={() => selected && choose(selected)}>
+          <Link
+            href={editId ? "/log" : "/"}
+            className="text-sm text-[#6d645b] underline-offset-4 hover:underline"
+          >
+            {editId ? "履歴に戻る" : "今日はここまでにする"}
+          </Link>
+          <Button className="h-12 px-6" disabled={draft.choice === null} onClick={submit}>
             {editId ? "この答えに変更する" : "この答えで次へ"}
           </Button>
         </div>
       </article>
       <p className="mt-4 hidden text-center text-xs text-[#8d8478] md:block">
-        1・2・3 キーで選択し、Enter キーで次へ進めます
+        1・2・3 キーで選択し、Enter キーで次へ進めます（理由の欄に入力中は使えません）
       </p>
     </section>
   );

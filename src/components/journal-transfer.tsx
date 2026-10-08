@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { Journal } from "@/lib/catalog";
+import type { Journal } from "@/lib/journal";
 import { sanitizeJournal } from "@/lib/storage";
 
 export function JournalTransfer() {
@@ -25,7 +25,7 @@ export function JournalTransfer() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `nijuu-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `nigxam-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
     setMessage({ tone: "ok", text: `${answered}問分の記録を書き出しました。` });

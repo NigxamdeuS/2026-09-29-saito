@@ -1,101 +1,104 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useJournal } from "@/components/journal-context";
-import { buttonVariants } from "@/components/ui/button";
-import { axes, axisOrder } from "@/lib/catalog";
-import { buildModel, type AxisKind } from "@/lib/model";
+import { TESTS, TEST_IDS, type TestId } from "@/lib/diagnosis";
+import { answeredItems, isComplete, loadProgress } from "@/lib/diagnosis-storage";
 import { cn } from "cn";
 
-const kindLabel: Record<AxisKind, string> = {
-  thin: "回答不足",
-  single: "一貫している",
-  noisy: "ぶれがある",
-  split: "場面で分かれる",
+const CARDS: Record<TestId, { href: string; points: string[] }> = {
+  confidence: {
+    href: "/confidence",
+    points: ["自分全体への自信を40点満点で", "仕事・人間関係・見た目など8分野の自信", "研究の平均・同じ年代の平均と比べる"],
+  },
+  dissociation: {
+    href: "/dissociation",
+    points: ["記憶の抜け・現実感の薄れなどの体験の多さ", "二重人格（解離性同一症）と関係の深い傾向", "日本の成人の平均・同じ年代の平均と比べる"],
+  },
 };
 
+type Status = { answered: number; done: boolean };
+
 export function HomeView() {
-  const { ready, journal } = useJournal();
-  const model = buildModel(journal);
+  const [status, setStatus] = useState<Partial<Record<TestId, Status>>>({});
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next: Partial<Record<TestId, Status>> = {};
+      for (const id of TEST_IDS) {
+        const progress = loadProgress(id);
+        next[id] = { answered: answeredItems(progress), done: isComplete(progress) };
+      }
+      setStatus(next);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 pt-10 pb-8 md:pt-20">
-      <p className="text-sm text-[#e25c2a]">場面別の意思決定テスト</p>
-      <h1 className="font-mincho mt-4 text-5xl leading-none font-medium md:text-7xl">
-        Nigxam
-      </h1>
-      <p className="font-mincho mt-8 max-w-xl text-2xl leading-snug md:text-[2rem] md:leading-snug">
-        こんなとき、あなたならどうしますか。
+      <h1 className="font-mincho text-5xl leading-none font-medium md:text-7xl">Nigxam</h1>
+      <p className="mt-6 max-w-xl text-[15px] leading-8 text-[#ddd4c6]">
+        研究で使われている質問紙をもとに、自分の自信の強さと、解離（二重人格に関係する体験）の傾向を、別々に測ります。結果は研究の平均や、同じ年代の人の平均と比べられます。
       </p>
-      <div className="mt-8 max-w-xl space-y-4 text-[15px] leading-8 text-[#ddd4c6]">
+
+      <div className="mt-10 grid gap-4 md:grid-cols-2">
+        {TEST_IDS.map((id) => {
+          const test = TESTS[id];
+          const card = CARDS[id];
+          const state = status[id];
+          return (
+            <Link
+              key={id}
+              href={card.href}
+              className={cn(
+                "group flex flex-col rounded-3xl px-6 py-6 transition-transform hover:-translate-y-0.5",
+                id === "confidence" ? "paper" : "border border-white/15 bg-white/[0.03]",
+              )}
+            >
+              <span className={cn("text-xs", id === "confidence" ? "text-[#6d645b]" : "text-[#b3a898]")}>
+                {test.items.length}問 · 約{Math.ceil(test.items.length / 6)}分
+              </span>
+              <span className="font-mincho mt-2 text-3xl">{test.title}</span>
+              <ul
+                className={cn(
+                  "mt-4 flex-1 space-y-1.5 text-sm leading-6",
+                  id === "confidence" ? "text-[#3f3832]" : "text-[#d9d0c3]",
+                )}
+              >
+                {card.points.map((point) => (
+                  <li key={point}>・{point}</li>
+                ))}
+              </ul>
+              <span
+                className={cn(
+                  "mt-6 inline-flex h-12 items-center justify-center rounded-xl text-base font-medium",
+                  id === "confidence" ? "bg-[#1c1712] text-[#f3ebdd]" : "bg-[#e25c2a] text-[#1c100c]",
+                )}
+              >
+                {state?.done
+                  ? "結果を見る"
+                  : state && state.answered > 0
+                    ? `続きから（${state.answered}/${test.items.length}）`
+                    : "はじめる"}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="mt-8 max-w-xl rounded-2xl border border-white/15 px-4 py-4 text-sm leading-7 text-[#ddd4c6]">
+        <p>どちらも医療機関での診断の代わりにはなりません。</p>
         <p>
-          一般的な性格診断ではありません。100の場面に少しずつ答えていくと、選んだ答えが積み重なって、あなたの意思決定の傾向が見えてきます。
-        </p>
-        <p>
-          その傾向はいつも同じなのか、それとも場面によって別の傾向が顔を出すのか。判定は、同じ種類の場面の回答がそろってから行います。質問は5問ずつ出ます。
-        </p>
-        <p>
-          あなたが答える前に、モデルは次の選択を予測しています。また、ときどき以前の質問をもう一度出して、同じ答えを選ぶかを確かめます。予測の的中率と答えの一貫性が、判定の裏づけになります。
+          解離傾向チェックの点数が高くても、それだけで二重人格（解離性同一症）だと決まるわけではありません。気になるときは、精神科や心療内科で相談してください。
         </p>
       </div>
 
-      {!ready ? (
-        <p className="mt-10 text-sm text-[#b3a898]">記録を読み込んでいます…</p>
-      ) : (
-        <>
-          {model.answered > 0 && (
-            <div className="paper mt-10 rounded-3xl px-6 py-6 md:px-8">
-              <p className="text-xs text-[#6d645b]">二重人格の可能性</p>
-              <p className="font-mincho mt-2 text-3xl">{model.possibility}</p>
-              <p className="mt-3 text-sm leading-7 text-[#3f3832]">{model.headline}</p>
-              <p className="mt-4 text-sm tabular-nums text-[#6d645b]">
-                {model.answered} / {model.total}
-              </p>
-            </div>
-          )}
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href={model.answered === model.total ? "/log" : "/ask"}
-              className={cn(buttonVariants({ size: "lg" }), "h-12 px-6")}
-            >
-              {model.answered === 0
-                ? "はじめる"
-                : model.answered === model.total
-                  ? "回答を見直す"
-                  : "続きから答える"}
-            </Link>
-            <Link
-              href="/model"
-              className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                "h-12 px-6",
-              )}
-            >
-              結果を見る
-            </Link>
-          </div>
-
-          <ul className="mt-14 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-            {axisOrder.map((id) => {
-              const axis = model.axes.find((item) => item.axis === id);
-              const unread = !axis || axis.n === 0;
-              return (
-                <li key={id} className="border-t border-white/15 pt-3">
-                  <p className="text-sm">{axes[id].name}</p>
-                  <p className="mt-1 text-xs text-[#b3a898]">
-                    {unread ? "未回答" : kindLabel[axis.kind]}
-                  </p>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="mt-4 text-xs leading-6 text-[#8d8478]">
-            この8つは性格タイプの名前ではありません。{axisOrder.map((id) => axes[id].name).join("・")}
-            は、場面ごとの選び方を読み取るための軸です。
-          </p>
-        </>
-      )}
+      <p className="mt-10 text-sm text-[#b3a898]">
+        具体的な場面での行動を考える質問集もあります（診断ではありません）：
+        <Link href="/scenes" className="ml-1 text-[#f3ebdd] underline underline-offset-4">
+          場面で選ぶ100問
+        </Link>
+      </p>
     </div>
   );
 }

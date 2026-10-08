@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 43123 -H 0.0.0.0",
     "lint": "eslint",
-    "test": "tsx --test src/lib/model.test.ts src/lib/contact.test.ts"
+    "test": "tsx --test src/lib/diagnosis.test.ts src/lib/questions.test.ts src/lib/contact.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

@@ -30,7 +30,7 @@ export function ResetJournal() {
         <DialogHeader>
           <DialogTitle className="font-mincho text-xl">記録を消去しますか？</DialogTitle>
           <DialogDescription>
-            これまでの回答と、そこから作られた意思決定モデルがすべて消えます。元には戻せません。
+            これまでの回答と理由がすべて消えます。元には戻せません。
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -43,7 +43,7 @@ export function ResetJournal() {
             onClick={() => {
               reset();
               setOpen(false);
-              router.push("/");
+              router.push("/scenes");
             }}
           >
             消去する

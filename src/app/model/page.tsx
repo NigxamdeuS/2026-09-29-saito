@@ -1,9 +1,9 @@
-import { ModelView } from "@/components/model-view";
+import { SummaryView } from "@/components/summary-view";
 
 export const metadata = {
-  title: "結果",
+  title: "まとめ",
 };
 
-export default function ModelPage() {
-  return <ModelView />;
+export default function SummaryPage() {
+  return <SummaryView />;
 }

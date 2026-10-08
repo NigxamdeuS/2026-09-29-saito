@@ -3,19 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useJournal } from "@/components/journal-context";
-import { buildModel } from "@/lib/model";
 import { cn } from "cn";
 
 const links = [
-  { href: "/ask", label: "答える" },
-  { href: "/model", label: "結果" },
-  { href: "/log", label: "履歴" },
+  { href: "/confidence", label: "自信度", match: ["/confidence"] },
+  { href: "/dissociation", label: "解離傾向", match: ["/dissociation"] },
+  { href: "/scenes", label: "場面100問", match: ["/scenes", "/ask", "/model", "/log"] },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { ready, journal, persistError } = useJournal();
-  const answered = ready ? buildModel(journal).answered : null;
+  const { persistError } = useJournal();
 
   return (
     <>
@@ -25,22 +23,22 @@ export function Shell({ children }: { children: React.ReactNode }) {
             Nigxam
           </Link>
           <nav className="flex items-center gap-1 text-sm sm:gap-2">
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-current={pathname === link.href ? "page" : undefined}
-                className={cn(
-                  "px-1.5 py-3 underline-offset-4 hover:underline sm:px-2",
-                  pathname === link.href ? "text-[#f3ebdd]" : "text-[#b3a898]",
-                )}
-              >
-                {link.label}
-              </Link>
-            ))}
-            {answered !== null && (
-              <span className="pl-1 tabular-nums text-[#b3a898]">{answered}/100</span>
-            )}
+            {links.map((link) => {
+              const active = link.match.includes(pathname);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "px-1.5 py-3 underline-offset-4 hover:underline sm:px-2",
+                    active ? "text-[#f3ebdd]" : "text-[#b3a898]",
+                  )}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </nav>
         </div>
       </header>
@@ -55,7 +53,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <main className="flex-1">{children}</main>
       <footer className="mx-auto w-full max-w-3xl px-5 py-10 text-xs leading-6 text-[#8d8478]">
         <p>
-          これは医学的な診断ではありません。解離性同一性症などの疾患を判定するものではなく、状況ごとの選択から、意思決定の傾向と、それが場面によって二つに分かれる度合いを読み取るものです。
+          このサイトの診断は、医療機関での診断の代わりにはなりません。解離性同一症（DID）などの病気があるかどうかを判定するものではありません。
         </p>
         <Link href="/contact" className="mt-1 inline-block py-2 underline-offset-4 hover:underline">
           お問い合わせ
