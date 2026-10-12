@@ -7,6 +7,7 @@ import {
   type AxisKey,
   type Item,
   type MeasureKey,
+  type Mode,
   type Scene,
 } from "@/lib/mbti/items";
 
@@ -56,9 +57,15 @@ export function scoreItems(items: Item[], answers: Answers, minAnswered?: number
 
 export type Results = Record<MeasureKey, MeasureResult>;
 
-export function scoreAll(answers: Answers): Results {
+/** その段階の質問だけで採点する。その段階で出題しない項目は total が 0 になる。 */
+export function scoreAll(answers: Answers, mode: Mode = "complete"): Results {
   const keys = [...new Set(ALL_ITEMS.map((item) => item.measure))];
-  return Object.fromEntries(keys.map((key) => [key, scoreItems(itemsOf(key), answers)])) as Results;
+  return Object.fromEntries(
+    keys.map((key) => {
+      const items = itemsOf(key, mode);
+      return [key, items.length > 0 ? scoreItems(items, answers) : { score: null, answered: 0, na: 0, total: 0 }];
+    }),
+  ) as Results;
 }
 
 export function sideOf(score: number | null): Side | null {
@@ -107,8 +114,12 @@ export function typeOf(results: Results): TypeResult {
 const SCENE_ORDER: Scene[] = ["daily", "work", "friends", "close"];
 
 /** 場面ごとの尺度上の傾向スコア。軸は1場面2問以上の回答があるときだけ出す。 */
-export function sceneScores(measure: MeasureKey, answers: Answers): Partial<Record<Scene, number>> {
-  const items = itemsOf(measure);
+export function sceneScores(
+  measure: MeasureKey,
+  answers: Answers,
+  mode: Mode = "complete",
+): Partial<Record<Scene, number>> {
+  const items = itemsOf(measure, mode);
   const isAxis = AXES.some((axis) => axis.key === measure);
   const scores: Partial<Record<Scene, number>> = {};
   for (const scene of SCENE_ORDER) {
@@ -123,10 +134,10 @@ export function sceneScores(measure: MeasureKey, answers: Answers): Partial<Reco
 export type SceneGap = { measure: MeasureKey; high: Scene; low: Scene; gap: number };
 
 /** 同じ項目で、場面によって回答の向きが大きく違うもの。嘘や矛盾ではなく、場面による違いの可能性として扱う。 */
-export function sceneGaps(measures: MeasureKey[], answers: Answers): SceneGap[] {
+export function sceneGaps(measures: MeasureKey[], answers: Answers, mode: Mode = "complete"): SceneGap[] {
   const gaps: SceneGap[] = [];
   for (const measure of measures) {
-    const entries = Object.entries(sceneScores(measure, answers)) as [Scene, number][];
+    const entries = Object.entries(sceneScores(measure, answers, mode)) as [Scene, number][];
     if (entries.length < 2) continue;
     const sorted = [...entries].sort((a, b) => b[1] - a[1]);
     const [high, highScore] = sorted[0];

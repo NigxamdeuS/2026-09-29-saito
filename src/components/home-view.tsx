@@ -91,7 +91,7 @@ export function HomeView() {
         className="mt-4 flex flex-col gap-4 rounded-3xl border border-[#a78bfa]/40 bg-[#a78bfa]/[0.06] px-6 py-6 transition-transform hover:-translate-y-0.5 sm:flex-row sm:items-center sm:justify-between"
       >
         <span>
-          <span className="text-xs text-[#8ea3bd]">80問 · 約12分 · 新しい診断</span>
+          <span className="text-xs text-[#8ea3bd]">30〜162問 · 4段階から選べる</span>
           <span className="font-mincho mt-2 block text-3xl">4軸タイプ診断</span>
           <span className="mt-2 block text-sm leading-6 text-[#c5d4e6]">
             MBTIの4軸を参考にした独自の自己理解診断。人との関わり方、合いやすい相手、二人の比較まで分かります。

@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AXES, TRAITS } from "@/lib/mbti/content";
-import { SCENES } from "@/lib/mbti/items";
+import { modeOf, SCENES } from "@/lib/mbti/items";
 import {
   COMPARE_SCENES,
   sideText,
   type AxisRow,
+  type FacetReport,
   type Finding,
   type PairReport,
   type Quality,
@@ -293,13 +294,74 @@ function ComparisonView({ comparison, partner }: { comparison: Comparison; partn
   );
 }
 
+function FacetSection({ facets }: { facets: FacetReport[] }) {
+  return (
+    <div className="mt-6 grid gap-6">
+      {facets.map((facet) => (
+        <div key={facet.axis.key} className="rounded-2xl border border-white/10 px-4 py-5 md:px-5">
+          <h3 className="font-medium">{facet.axis.title}</h3>
+          <ul className="mt-3 grid gap-4">
+            {facet.rows.map((row) => (
+              <li key={row.def.key} className="text-sm">
+                <div className="flex flex-wrap justify-between gap-2">
+                  <span>{row.def.title}</span>
+                  <span className="text-xs tabular-nums text-[#8ea3bd]">
+                    {row.score === null
+                      ? "保留"
+                      : `${displayScore(row.score)}（${
+                          row.side === "mid" ? "両方" : row.side === "low" ? row.def.low : row.def.high
+                        }）`}
+                  </span>
+                </div>
+                <AxisBar left={facet.axis.letters[0]} right={facet.axis.letters[1]} score={row.score} />
+                <p className="mt-1 flex justify-between gap-4 text-xs text-[#8ea3bd]">
+                  <span>{row.def.low}</span>
+                  <span className="text-right">{row.def.high}</span>
+                </p>
+              </li>
+            ))}
+          </ul>
+          <Findings items={[facet.note]} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NextStep({ next, onUpgrade }: { next: NextLevel; onUpgrade: () => void }) {
+  return (
+    <div className="mt-6 rounded-2xl border border-[#a78bfa]/50 bg-[#a78bfa]/[0.06] px-4 py-4">
+      <p className="text-sm font-medium">
+        次の段階「{next.label}」（{next.total}問）に進むと、解析を深められます
+      </p>
+      <p className="mt-1 text-sm leading-7 text-[#c5d4e6]">{next.desc}</p>
+      <p className="mt-1 text-xs text-[#8ea3bd]">
+        {next.remaining > 0
+          ? `ここまでの回答は引き継ぎます。追加で答えるのは${next.remaining}問です。`
+          : "必要な質問にはすでに答えています。すぐに結果を見られます。"}
+      </p>
+      <Button className="mt-3 h-11 px-5" onClick={onUpgrade}>
+        {next.remaining > 0 ? `${next.label}に進む（あと${next.remaining}問）` : `${next.label}の結果を見る`}
+      </Button>
+    </div>
+  );
+}
+
+export type NextLevel = { label: string; total: number; remaining: number; desc: string };
+
 export function MbtiResult({
   report,
+  next,
+  onUpgrade,
   onRetake,
+  onChangeMode,
   onReview,
 }: {
   report: Report;
+  next: NextLevel | null;
+  onUpgrade: () => void;
   onRetake: () => void;
+  onChangeMode: () => void;
   onReview: () => void;
 }) {
   const [feedback, setFeedback] = useState<Feedback>({});
@@ -325,10 +387,18 @@ export function MbtiResult({
   const scores = scoresOf(report.results);
   const sectionProps = { feedback, onFeedback: recordFeedback };
   const { type } = report;
+  const mode = modeOf(report.mode);
+  let count = 0;
+  const nextNumber = () => ++count;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 py-10 md:py-16">
-      <p className="text-sm text-[#22d3ee]">4軸タイプ診断の結果</p>
+      <p className="text-sm text-[#22d3ee]">
+        4軸タイプ診断の結果
+        <span className="ml-2 rounded-full border border-[#22d3ee]/50 px-2 py-0.5 text-xs">
+          {mode.label}・{report.quality.total}問
+        </span>
+      </p>
       <p className="mt-1 text-xs leading-6 text-[#8ea3bd]">
         MBTIの4軸を参考にした独自の自己理解診断です。公式のMBTI検査ではありません。文章は、あらかじめ定めた説明ルールをもとにプログラムで組み立てています。
       </p>
@@ -373,15 +443,23 @@ export function MbtiResult({
         </p>
       )}
 
+      {report.unmeasured.length > 0 && (
+        <p className="mt-6 rounded-2xl border border-white/15 px-4 py-3 text-sm leading-7 text-[#c5d4e6]">
+          この段階では、次の項目は質問に含めていないため表示していません：{report.unmeasured.join("、")}
+        </p>
+      )}
+
       <QualityPanel quality={report.quality} />
 
-      <Section id="summary" number={1} title="あなたの傾向の要約" {...sectionProps}>
+      {next && <NextStep next={next} onUpgrade={onUpgrade} />}
+
+      <Section id="summary" number={nextNumber()} title="あなたの傾向の要約" {...sectionProps}>
         <Findings items={report.summary} />
       </Section>
 
       <Section
         id="axes"
-        number={2}
+        number={nextNumber()}
         title="4軸のスコア"
         lead="スコアは0〜100の「尺度上の傾向スコア」です。確率や正答率、人口の中での順位ではありません。帯の中央の明るい部分（40〜60）は、両方の傾向がある範囲です。"
         {...sectionProps}
@@ -410,13 +488,13 @@ export function MbtiResult({
         </ul>
         <div className="mt-8 grid gap-x-6 gap-y-3 sm:grid-cols-2">
           {TRAITS.map((def) => {
-            const score = report.results[def.key].score;
+            const { score, total } = report.results[def.key];
             return (
-              <div key={def.key} className="text-sm">
+              <div key={def.key} className={cn("text-sm", total === 0 && "opacity-50")}>
                 <div className="flex justify-between gap-2">
                   <span>{def.title}</span>
                   <span className="text-xs tabular-nums text-[#8ea3bd]">
-                    {score === null ? "保留" : displayScore(score)}
+                    {total === 0 ? "この段階では未測定" : score === null ? "保留" : displayScore(score)}
                   </span>
                 </div>
                 <TraitBar score={score} />
@@ -429,9 +507,21 @@ export function MbtiResult({
         </div>
       </Section>
 
+      {report.facets.length > 0 && (
+        <Section
+          id="facets"
+          number={nextNumber()}
+          title="4軸の内訳（3つの側面）"
+          lead="完全版では、4つの軸それぞれを3つの側面に分け、側面ごとに8問ずつで見ています。同じ軸の中でも、側面によって向きが違うことがあります。"
+          {...sectionProps}
+        >
+          <FacetSection facets={report.facets} />
+        </Section>
+      )}
+
       <Section
         id="pairs"
-        number={3}
+        number={nextNumber()}
         title="2つの軸の組み合わせから見るスタイル"
         lead="軸を一つずつ見るだけでなく、2つの軸を組み合わせたときの物事への向き合い方です。"
         {...sectionProps}
@@ -439,25 +529,25 @@ export function MbtiResult({
         <PairList pairs={report.pairs} />
       </Section>
 
-      <Section id="thinking" number={4} title="物事の捉え方と意思決定" {...sectionProps}>
+      <Section id="thinking" number={nextNumber()} title="物事の捉え方と意思決定" {...sectionProps}>
         <Findings items={report.thinking} />
       </Section>
 
-      <Section id="people" number={5} title="人と関わるときの特徴" {...sectionProps}>
+      <Section id="people" number={nextNumber()} title="人と関わるときの特徴" {...sectionProps}>
         <Findings items={report.people} />
       </Section>
 
-      <Section id="strengths" number={6} title="強みが発揮されやすい場面" {...sectionProps}>
+      <Section id="strengths" number={nextNumber()} title="強みが発揮されやすい場面" {...sectionProps}>
         <Findings items={report.strengths} />
       </Section>
 
-      <Section id="strains" number={7} title="負担を感じやすい環境" {...sectionProps}>
+      <Section id="strains" number={nextNumber()} title="負担を感じやすい環境" {...sectionProps}>
         <Findings items={report.strains} />
       </Section>
 
       <Section
         id="stress"
-        number={8}
+        number={nextNumber()}
         title="負担が続いたときの反応と、回復のしかた"
         lead="誰でも負担が続くと、ふだんの傾向が強く出たり、逆の形で出たりします。早めに気づくための目安です。"
         {...sectionProps}
@@ -465,13 +555,13 @@ export function MbtiResult({
         <StressList items={report.stress} />
       </Section>
 
-      <Section id="misreads" number={9} title="周囲から誤解されやすい行動" {...sectionProps}>
+      <Section id="misreads" number={nextNumber()} title="周囲から誤解されやすい行動" {...sectionProps}>
         <Findings items={report.misreads} />
       </Section>
 
       <Section
         id="asks"
-        number={10}
+        number={nextNumber()}
         title="周りの人に伝えておくとよいこと"
         lead="あなたの傾向を、身近な人に伝えるときの言い方の例です。そのまま使っても、自分の言葉に直しても構いません。"
         {...sectionProps}
@@ -481,7 +571,7 @@ export function MbtiResult({
 
       <Section
         id="scenes"
-        number={11}
+        number={nextNumber()}
         title="職場、友人、恋愛での傾向の違い"
         lead="場面ごとの質問だけで4軸を見たものです。回答が揺れていても嘘や矛盾とは考えず、場面による違いの可能性として扱います。"
         {...sectionProps}
@@ -525,7 +615,7 @@ export function MbtiResult({
 
       <Section
         id="combos"
-        number={12}
+        number={nextNumber()}
         title="回答から読み取れる特徴の組み合わせ"
         lead="一つの項目だけでなく、項目どうしの組み合わせから読み取れることです。"
         {...sectionProps}
@@ -535,7 +625,7 @@ export function MbtiResult({
 
       <Section
         id="growth"
-        number={13}
+        number={nextNumber()}
         title="伸ばしやすい力"
         lead="はっきり出ている傾向の反対側にある力です。苦手を直すためではなく、場面に応じて選べる行動を増やすための視点です。"
         {...sectionProps}
@@ -543,7 +633,7 @@ export function MbtiResult({
         <Findings items={report.growth} />
       </Section>
 
-      <Section id="actions" number={14} title="試してみるとよい具体的な行動" {...sectionProps}>
+      <Section id="actions" number={nextNumber()} title="試してみるとよい具体的な行動" {...sectionProps}>
         <Findings items={report.actions} />
       </Section>
 
@@ -562,7 +652,7 @@ export function MbtiResult({
                   <div className="flex justify-between">
                     <span>{value.label}</span>
                     <span className="text-xs tabular-nums text-[#8ea3bd]">
-                      {value.score === null ? "保留" : displayScore(value.score)}
+                      {!value.measured ? "この段階では未測定" : value.score === null ? "保留" : displayScore(value.score)}
                     </span>
                   </div>
                   <TraitBar score={value.score} />
@@ -592,7 +682,7 @@ export function MbtiResult({
 
       <section className="mt-16" aria-labelledby="mbti-match">
         <h2 id="mbti-match" className="flex items-baseline gap-3 text-2xl font-medium">
-          <span className="font-mincho text-sm text-[#22d3ee]">15</span>
+          <span className="font-mincho text-sm text-[#22d3ee]">{String(nextNumber()).padStart(2, "0")}</span>
           どんな人と合いやすいか
         </h2>
         <p className="mt-3 text-sm leading-7 text-[#c5d4e6]">
@@ -631,7 +721,7 @@ export function MbtiResult({
 
       <section className="mt-16" aria-labelledby="mbti-compare">
         <h2 id="mbti-compare" className="flex items-baseline gap-3 text-2xl font-medium">
-          <span className="font-mincho text-sm text-[#22d3ee]">16</span>
+          <span className="font-mincho text-sm text-[#22d3ee]">{String(nextNumber()).padStart(2, "0")}</span>
           二人の結果を比べる
         </h2>
         <p className="mt-3 text-sm leading-7 text-[#c5d4e6]">
@@ -737,9 +827,14 @@ export function MbtiResult({
         </p>
       )}
 
-      <div className="mt-14 flex flex-col gap-3 sm:flex-row">
+      {next && <NextStep next={next} onUpgrade={onUpgrade} />}
+
+      <div className="mt-10 flex flex-col flex-wrap gap-3 sm:flex-row">
         <Button variant="outline" className="h-12 px-6" onClick={onReview}>
           回答を見直す
+        </Button>
+        <Button variant="outline" className="h-12 px-6" onClick={onChangeMode}>
+          段階を選び直す
         </Button>
         <Button variant="outline" className="h-12 px-6" onClick={onRetake}>
           回答を消して最初から受ける

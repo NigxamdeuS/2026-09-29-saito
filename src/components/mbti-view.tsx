@@ -5,12 +5,15 @@ import { MbtiResult } from "@/components/mbti-result";
 import { Button } from "@/components/ui/button";
 import {
   ANSWER_OPTIONS,
-  BASE_ITEMS,
+  baseItemsOf,
+  MODES,
   NA_LABEL,
+  nextMode,
   SCENES,
   STATE_ITEMS,
   type AnswerValue,
   type Item,
+  type Mode,
 } from "@/lib/mbti/items";
 import { buildReport } from "@/lib/mbti/report";
 import { emptyMbti, loadMbti, saveMbti, type MbtiProgress } from "@/lib/mbti/storage";
@@ -18,20 +21,29 @@ import { cn } from "cn";
 
 type Phase = "intro" | "base" | "stateIntro" | "state" | "result";
 
+const DEFAULT_MODE: Mode = "standard";
+
 /** 同じ項目の質問が続かないよう、項目ごとに1問ずつ順番に並べる。 */
-const ORDER: Item[] = (() => {
+function orderOf(mode: Mode): Item[] {
+  const items = baseItemsOf(mode);
   const groups = new Map<string, Item[]>();
-  for (const item of BASE_ITEMS) groups.set(item.measure, [...(groups.get(item.measure) ?? []), item]);
+  for (const item of items) groups.set(item.measure, [...(groups.get(item.measure) ?? []), item]);
   const queues = [...groups.values()];
   const order: Item[] = [];
-  while (order.length < BASE_ITEMS.length) {
+  while (order.length < items.length) {
     for (const queue of queues) {
       const next = queue.shift();
       if (next) order.push(next);
     }
   }
   return order;
-})();
+}
+
+const ORDERS = Object.fromEntries(MODES.map((mode) => [mode.key, orderOf(mode.key)])) as Record<Mode, Item[]>;
+
+function minutesOf(count: number) {
+  return Math.max(1, Math.round(count / 7));
+}
 
 const NOTICES = [
   "公式のMBTI検査ではありません。MBTIの4軸を参考にした、このサイト独自の自己理解診断です。公式の質問や説明文は使っていません。",
@@ -45,6 +57,7 @@ const HOW_TO = [
   "場面が想像できないときや経験がないときは、「判断できない／経験がない」を選べます。「どちらともいえない」とは別に扱います。",
   "恋愛の経験がなくても答えられます。恋人がいない場合は、家族や親友など親しい相手を思い浮かべてください。",
   "回答はこのブラウザの中だけに保存されます。途中でやめても続きから答えられます。",
+  "短い段階の質問は、長い段階にすべて含まれています。あとから長い段階に進むと、それまでの回答を引き継いで、増えた質問だけに答えます。",
 ];
 
 function answeredCount(progress: MbtiProgress, items: Item[]) {
@@ -70,18 +83,23 @@ export function MbtiView() {
     progressRef.current = loaded;
     const timer = window.setTimeout(() => {
       setProgress(loaded);
-      if (answeredCount(loaded, BASE_ITEMS) === BASE_ITEMS.length && loaded.stateDone) setPhase("result");
+      if (loaded.mode) {
+        const order = ORDERS[loaded.mode];
+        if (answeredCount(loaded, order) === order.length && loaded.stateDone) setPhase("result");
+      }
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
-  const items = phase === "state" ? STATE_ITEMS : ORDER;
+  const mode = progress?.mode ?? DEFAULT_MODE;
+  const order = ORDERS[mode];
+  const items = phase === "state" ? STATE_ITEMS : order;
 
   const choose = useCallback(
     (value: AnswerValue) => {
       const current = progressRef.current;
       if (!current || advancing.current) return;
-      const list = phase === "state" ? STATE_ITEMS : ORDER;
+      const list = phase === "state" ? STATE_ITEMS : ORDERS[current.mode ?? DEFAULT_MODE];
       const item = list[index];
       const next: MbtiProgress = {
         ...current,
@@ -131,8 +149,8 @@ export function MbtiView() {
   }, [choose, phase]);
 
   const report = useMemo(
-    () => (progress && phase === "result" ? buildReport(progress.answers) : null),
-    [progress, phase],
+    () => (progress && phase === "result" ? buildReport(progress.answers, mode) : null),
+    [progress, phase, mode],
   );
 
   if (!progress) {
@@ -153,12 +171,19 @@ export function MbtiView() {
     window.scrollTo({ top: 0 });
   }
 
+  function selectMode(key: Mode) {
+    commit({ ...progressRef.current!, mode: key });
+  }
+
   if (phase === "intro") {
-    const answered = answeredCount(progress, BASE_ITEMS);
-    const finished = answered === BASE_ITEMS.length;
+    const answered = answeredCount(progress, order);
+    const finished = answered === order.length;
+    const anyAnswered = Object.keys(progress.answers).length > 0;
     return (
       <div className="mx-auto w-full max-w-2xl px-5 py-10 md:py-16">
-        <p className="text-sm text-[#22d3ee]">{BASE_ITEMS.length}問 · 約12分</p>
+        <p className="text-sm text-[#22d3ee]">
+          {MODES.map((item) => baseItemsOf(item.key).length).join(" / ")}問 · 4段階から選べます
+        </p>
         <h1 className="font-mincho mt-3 text-4xl leading-tight md:text-5xl">4軸タイプ診断</h1>
         <p className="mt-2 text-sm text-[#8ea3bd]">MBTIの4軸を参考にした独自の自己理解診断</p>
         <p className="mt-5 text-[15px] leading-8 text-[#cfdcec]">
@@ -176,6 +201,44 @@ export function MbtiView() {
           </ul>
         </div>
 
+        <h2 className="font-mincho mt-10 text-xl">段階を選ぶ</h2>
+        <p className="mt-2 text-sm leading-7 text-[#c5d4e6]">
+          質問が多いほど、一つひとつの結果が安定し、読み取れることも増えます。
+        </p>
+        <div className="mt-4 grid gap-3" role="radiogroup" aria-label="診断の段階">
+          {MODES.map((item) => {
+            const list = ORDERS[item.key];
+            const done = answeredCount(progress, list);
+            const selected = item.key === mode;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => selectMode(item.key)}
+                className={cn(
+                  "rounded-2xl border px-5 py-4 text-left transition-colors",
+                  selected
+                    ? "border-[#22d3ee] bg-[#22d3ee]/10 shadow-[0_0_24px_rgba(34,211,238,0.18)]"
+                    : "border-white/15 hover:border-white/40",
+                )}
+              >
+                <span className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-lg font-medium">
+                    {item.label}
+                    <span className="font-mincho ml-3 text-[#22d3ee] tabular-nums">{list.length}問</span>
+                  </span>
+                  <span className="text-xs text-[#8ea3bd] tabular-nums">
+                    約{minutesOf(list.length)}分{done > 0 && ` · 回答済み ${done}/${list.length}`}
+                  </span>
+                </span>
+                <span className="mt-1 block text-sm leading-7 text-[#c5d4e6]">{item.desc}</span>
+              </button>
+            );
+          })}
+        </div>
+
         <h2 className="font-mincho mt-10 text-xl">答え方</h2>
         <ul className="mt-3 space-y-2 text-sm leading-7 text-[#c5d4e6]">
           {HOW_TO.map((line) => (
@@ -190,22 +253,27 @@ export function MbtiView() {
           <Button
             className="h-12 px-6 text-base"
             onClick={() => {
+              if (!progress.mode) selectMode(mode);
               if (finished) setPhase(progress.stateDone ? "result" : "stateIntro");
-              else start(ORDER, "base");
+              else start(order, "base");
             }}
           >
-            {finished ? "結果を見る" : answered > 0 ? `続きから（${answered}/${BASE_ITEMS.length}）` : "はじめる"}
+            {finished
+              ? "結果を見る"
+              : answered > 0
+                ? `続きから（${answered}/${order.length}）`
+                : `${MODES.find((item) => item.key === mode)!.label}ではじめる`}
           </Button>
-          {answered > 0 && (
+          {anyAnswered && (
             <Button
               variant="outline"
               className="h-12 px-6 text-base"
               onClick={() => {
-                commit(emptyMbti());
+                commit({ ...emptyMbti(), mode: progress.mode });
                 setIndex(0);
               }}
             >
-              最初からやり直す
+              回答をすべて消す
             </Button>
           )}
         </div>
@@ -217,7 +285,7 @@ export function MbtiView() {
   if (phase === "stateIntro") {
     return (
       <div className="mx-auto w-full max-w-2xl px-5 py-10 md:py-16">
-        <p className="text-sm text-[#22d3ee]">基本の{BASE_ITEMS.length}問が終わりました</p>
+        <p className="text-sm text-[#22d3ee]">基本の{order.length}問が終わりました</p>
         <h1 className="font-mincho mt-3 text-3xl leading-tight">いまの状態について（{STATE_ITEMS.length}問）</h1>
         <p className="mt-5 text-[15px] leading-8 text-[#cfdcec]">
           最後に、最近の疲れや、今どんな関係を求めているかを聞きます。性格の傾向とは別に扱い、基本診断の点数には加えません。疲れが結果に影響していそうなときに、そのことを結果の中でお知らせするために使います。
@@ -242,16 +310,38 @@ export function MbtiView() {
   }
 
   if (phase === "result" && report) {
+    const upgrade = nextMode(mode);
     return (
       <MbtiResult
         report={report}
+        next={
+          upgrade
+            ? {
+                label: upgrade.label,
+                total: ORDERS[upgrade.key].length,
+                remaining: ORDERS[upgrade.key].length - answeredCount(progress, ORDERS[upgrade.key]),
+                desc: upgrade.desc,
+              }
+            : null
+        }
+        onUpgrade={() => {
+          if (!upgrade) return;
+          selectMode(upgrade.key);
+          const list = ORDERS[upgrade.key];
+          if (answeredCount(progress, list) < list.length) start(list, "base");
+          else window.scrollTo({ top: 0 });
+        }}
         onRetake={() => {
-          commit(emptyMbti());
+          commit({ ...emptyMbti(), mode: progress.mode });
           setIndex(0);
           setPhase("intro");
           window.scrollTo({ top: 0 });
         }}
-        onReview={() => start(ORDER, "base")}
+        onChangeMode={() => {
+          setPhase("intro");
+          window.scrollTo({ top: 0 });
+        }}
+        onReview={() => start(order, "base")}
       />
     );
   }

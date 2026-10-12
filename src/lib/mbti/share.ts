@@ -80,7 +80,7 @@ function compareMeasure(def: BipolarDef, mine: Scores, theirs: Scores, partner: 
   const a = mine[def.key];
   const b = theirs[def.key];
   if (typeof a !== "number" || typeof b !== "number") {
-    return { common: null, difference: `${def.title}：どちらかの回答が保留のため、比べていません。`, talk: null };
+    return { common: null, difference: `${def.title}：どちらかが未測定または保留のため、比べていません。`, talk: null };
   }
   const sa = sideOf(a);
   const sb = sideOf(b);

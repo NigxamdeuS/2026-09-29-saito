@@ -634,6 +634,32 @@ export const DOMAINS: {
   },
 ];
 
+export type FacetDef = { key: string; title: string; low: string; high: string };
+
+/** 軸の中の側面。完全版で、各側面の質問が十分にあるときだけ分析する。 */
+export const FACETS: Record<AxisKey, FacetDef[]> = {
+  EI: [
+    { key: "recharge", title: "気力の回復", low: "人と過ごして回復する", high: "一人で過ごして回復する" },
+    { key: "process", title: "考えのまとめ方", low: "話しながらまとめる", high: "頭の中でまとめてから話す" },
+    { key: "breadth", title: "関わりの広さ", low: "広く多くの人と関わる", high: "少数の人と深く関わる" },
+  ],
+  SN: [
+    { key: "detail", title: "情報の受け取り方", low: "具体的な事実や手順から", high: "全体像や要点から" },
+    { key: "focus", title: "関心の向き", low: "今起きていること", high: "これから先の可能性" },
+    { key: "method", title: "やり方の好み", low: "慣れた・実績のある方法", high: "新しい方法や工夫" },
+  ],
+  TF: [
+    { key: "basis", title: "判断の基準", low: "根拠や筋道", high: "価値観や人の事情" },
+    { key: "delivery", title: "伝え方", low: "率直にそのまま伝える", high: "相手に合わせて言い方を選ぶ" },
+    { key: "harmony", title: "対立したときの優先", low: "正しさをはっきりさせる", high: "場の調和や気持ちを守る" },
+  ],
+  JP: [
+    { key: "schedule", title: "予定の立て方", low: "前もって決める", high: "その場で決める" },
+    { key: "pace", title: "作業の進め方", low: "早めに少しずつ進める", high: "締め切り前や気分に合わせて進める" },
+    { key: "closure", title: "決めるタイミング", low: "早めに決めてすっきりしたい", high: "選択肢を残しておきたい" },
+  ],
+};
+
 export type PairStyle = { title: string; desc: string; role: string; watch: string };
 
 /** 2つの軸の組み合わせ。styles のキーは、各軸の文字を並べたもの（例："ST"）。 */

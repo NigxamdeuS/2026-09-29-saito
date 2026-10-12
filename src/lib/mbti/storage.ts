@@ -1,17 +1,19 @@
-import { ALL_ITEMS, isAnswerValue } from "@/lib/mbti/items";
+import { ALL_ITEMS, BASE_ITEMS, isAnswerValue, isMode, type Mode } from "@/lib/mbti/items";
 import type { Answers } from "@/lib/mbti/scoring";
 
 export const MBTI_STORAGE_KEY = "nigxam.mbti.v1";
 export const MBTI_FEEDBACK_KEY = "nigxam.mbti.feedback.v1";
 
 export type MbtiProgress = {
+  /** 選んだ段階。まだ選んでいなければ null。 */
+  mode: Mode | null;
   answers: Answers;
   /** 「いまの状態」の質問を、答えたか飛ばしたかして終えたか。 */
   stateDone: boolean;
 };
 
 export function emptyMbti(): MbtiProgress {
-  return { answers: {}, stateDone: false };
+  return { mode: null, answers: {}, stateDone: false };
 }
 
 export function sanitizeMbti(input: unknown): MbtiProgress {
@@ -26,7 +28,9 @@ export function sanitizeMbti(input: unknown): MbtiProgress {
       if (isAnswerValue(value) && version === item.version) answers[item.id] = { value, version };
     }
   }
-  return { answers, stateDone: raw.stateDone === true };
+  // mode を持たない保存データの回答は、すべて「詳細」の質問に含まれる。
+  const legacy = BASE_ITEMS.some((item) => answers[item.id]) ? "detailed" : null;
+  return { mode: isMode(raw.mode) ? raw.mode : legacy, answers, stateDone: raw.stateDone === true };
 }
 
 export function loadMbti(): MbtiProgress {
