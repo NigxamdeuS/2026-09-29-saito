@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { AXES, BIPOLARS, COMBOS, TRAITS } from "@/lib/mbti/content";
+import { AXES, BIPOLARS, COMBOS, PAIRS, TRAITS } from "@/lib/mbti/content";
 import { BASE_ITEMS, itemsOf, STATE_ITEMS, type AnswerValue, type Item } from "@/lib/mbti/items";
 import { buildReport } from "@/lib/mbti/report";
 import { scoreAll, scoreItems, sceneGaps, typeOf, type Answers } from "@/lib/mbti/scoring";
@@ -156,8 +156,57 @@ describe("結果の文章", () => {
     for (const def of BIPOLARS) {
       for (const pole of [def.low, def.high]) {
         for (const text of Object.values(pole)) assert.ok(text.length > 0, def.key);
+        assert.equal(pole.stress === undefined, pole.recover === undefined, def.key);
       }
     }
+    for (const axis of AXES) assert.ok(axis.low.stress && axis.high.stress, axis.key);
+  });
+
+  it("2つの軸の組み合わせは、中央付近の軸があれば両方のスタイルを示す", () => {
+    const answers: Answers = {};
+    lean(itemsOf("EI"), 0, answers);
+    lean(itemsOf("SN"), 1, answers);
+    lean(itemsOf("TF"), 0, answers);
+    lean(itemsOf("JP"), 1, answers);
+    const titles = buildReport(answers).pairs.map((pair) => pair.styles.map((style) => style.title));
+    assert.deepEqual(
+      titles.map((group) => group.length),
+      [1, 1, 1],
+    );
+    assert.equal(titles[0][0], PAIRS[0].styles.NT.title);
+
+    const jp = itemsOf("JP");
+    lean(jp.slice(0, 7), 1, answers);
+    lean(jp.slice(7), 0, answers);
+    const mixed = buildReport(answers).pairs.find((pair) => pair.title === PAIRS[1].title)!;
+    assert.equal(mixed.styles.length, 2);
+    assert.equal(buildReport({}).pairs.length, 0);
+  });
+
+  it("軸のスコアにつながった回答を、寄っている側から示す", () => {
+    const row = buildReport(lean(itemsOf("EI"), 1)).axes.find((axis) => axis.def.key === "EI")!;
+    assert.equal(row.evidence.length, 3);
+    assert.ok(row.evidence.every((item) => item.toward === "I"));
+    assert.equal(row.degree, "とてもはっきり");
+  });
+});
+
+describe("回答の状況", () => {
+  it("偏りのない回答には注意を出さない", () => {
+    const answers: Answers = {};
+    for (const axis of AXES) lean(itemsOf(axis.key), 1, answers);
+    for (const trait of TRAITS) lean(itemsOf(trait.key), 0, answers);
+    assert.deepEqual(buildReport(answers).quality.notes, []);
+  });
+
+  it("どれにも「当てはまる」や「どちらともいえない」が多いときは注意を出す", () => {
+    const agree = buildReport(all(5)).quality;
+    assert.ok(agree.notes.some((note) => note.text.includes("「当てはまる」側")));
+    assert.ok(agree.notes.some((note) => note.text.includes("向きがそろっていません")));
+    const neutral = buildReport(all(3)).quality;
+    assert.equal(neutral.neutral, 80);
+    assert.ok(neutral.notes.some((note) => note.text.includes("どちらともいえない")));
+    assert.ok(buildReport(all("na")).quality.notes.some((note) => note.basis.includes("80問")));
   });
 });
 

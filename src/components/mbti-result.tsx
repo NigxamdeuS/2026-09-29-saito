@@ -4,7 +4,16 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AXES, TRAITS } from "@/lib/mbti/content";
 import { SCENES } from "@/lib/mbti/items";
-import { COMPARE_SCENES, type Finding, type Report } from "@/lib/mbti/report";
+import {
+  COMPARE_SCENES,
+  sideText,
+  type AxisRow,
+  type Finding,
+  type PairReport,
+  type Quality,
+  type Report,
+  type StressFinding,
+} from "@/lib/mbti/report";
 import { displayScore, MIDDLE_HIGH, MIDDLE_LOW } from "@/lib/mbti/scoring";
 import {
   compareProfiles,
@@ -145,6 +154,90 @@ function List({ title, items, empty }: { title: string; items: Finding[]; empty?
   );
 }
 
+function EvidenceList({ row }: { row: AxisRow }) {
+  if (row.evidence.length === 0) return null;
+  return (
+    <details className="mt-3 rounded-xl border border-white/10 px-4 py-2 text-sm">
+      <summary className="cursor-pointer py-1 text-xs text-[#8ea3bd]">このスコアにつながった回答を見る</summary>
+      <ul className="mt-2 grid gap-2 pb-2">
+        {row.evidence.map((item) => (
+          <li key={item.text} className="leading-7">
+            <span className="font-mincho mr-2 text-xs text-[#22d3ee]">{item.toward}</span>
+            「{item.text}」
+            <span className="ml-1 text-xs text-[#8ea3bd]">→ {item.answer}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function PairList({ pairs }: { pairs: PairReport[] }) {
+  if (pairs.length === 0) {
+    return <p className="mt-3 text-sm leading-7 text-[#8ea3bd]">回答が少ない軸があるため、組み合わせの分析は保留しています。</p>;
+  }
+  return (
+    <div className="mt-5 grid gap-5">
+      {pairs.map((pair) => (
+        <div key={pair.title} className="rounded-2xl border border-white/10 px-4 py-4 md:px-5">
+          <p className="text-xs text-[#22d3ee]">{pair.title}</p>
+          {pair.styles.length > 1 && (
+            <p className="mt-2 text-sm leading-7 text-[#c5d4e6]">
+              片方の軸が中央付近のため、次の{pair.styles.length}つのスタイルを場面に応じて使い分けている可能性があります。
+            </p>
+          )}
+          {pair.styles.map((style) => (
+            <div key={style.title} className="mt-3">
+              <h3 className="font-medium">{style.title}</h3>
+              <p className="mt-1 text-[15px] leading-8">{style.desc}</p>
+              <p className="mt-1 text-sm leading-7 text-[#c5d4e6]">活かしやすい役割：{style.role}</p>
+              <p className="text-sm leading-7 text-[#c5d4e6]">気をつけたい点：{style.watch}</p>
+            </div>
+          ))}
+          <p className="mt-2 text-xs leading-6 text-[#8ea3bd]">根拠となる回答：{pair.basis}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StressList({ items }: { items: StressFinding[] }) {
+  if (items.length === 0) {
+    return <p className="mt-3 text-sm leading-7 text-[#8ea3bd]">はっきりした傾向が出ている項目はありませんでした。</p>;
+  }
+  return (
+    <ul className="mt-4 grid gap-4">
+      {items.map((item) => (
+        <li key={item.text} className="border-l-2 border-[#a78bfa]/60 pl-4">
+          <p className="text-[15px] leading-8">{item.text}</p>
+          <p className="mt-1 text-sm leading-7 text-[#c5d4e6]">回復しやすい方法：{item.recover}</p>
+          <p className="mt-1 text-xs leading-6 text-[#8ea3bd]">根拠となる回答：{item.basis}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function QualityPanel({ quality }: { quality: Quality }) {
+  return (
+    <div className="mt-6 rounded-2xl border border-white/15 px-4 py-4 text-sm leading-7">
+      <h2 className="font-medium">回答の状況</h2>
+      <p className="mt-1 text-[#c5d4e6]">
+        {quality.total}問中{quality.answered}問に回答（「判断できない／経験がない」{quality.na}問、「どちらともいえない」
+        {quality.neutral}問）
+      </p>
+      {quality.notes.length === 0 ? (
+        <p className="mt-1 text-xs text-[#8ea3bd]">結果の読み取りに影響しそうな回答の偏りはありませんでした。</p>
+      ) : (
+        <Findings items={quality.notes} />
+      )}
+      <p className="mt-2 text-xs leading-6 text-[#8ea3bd]">
+        回答の偏りは、正しい・間違いを判定するものではありません。結果をどのくらい強く受け取るかの目安として見てください。
+      </p>
+    </div>
+  );
+}
+
 function ComparisonView({ comparison, partner }: { comparison: Comparison; partner: string }) {
   const blocks = [comparison.values, ...comparison.topics];
   return (
@@ -280,6 +373,8 @@ export function MbtiResult({
         </p>
       )}
 
+      <QualityPanel quality={report.quality} />
+
       <Section id="summary" number={1} title="あなたの傾向の要約" {...sectionProps}>
         <Findings items={report.summary} />
       </Section>
@@ -299,11 +394,7 @@ export function MbtiResult({
                 <span className="text-xs tabular-nums text-[#8ea3bd]">
                   {row.score === null
                     ? "保留"
-                    : `尺度上の傾向スコア ${displayScore(row.score)}（${
-                        row.side === "mid"
-                          ? "両方の傾向"
-                          : `${row.side === "low" ? row.def.letters[0] : row.def.letters[1]}寄り`
-                      }）`}
+                    : `尺度上の傾向スコア ${displayScore(row.score)}（${sideText(row.def, row.score)}）`}
                 </span>
               </div>
               <AxisBar left={row.def.letters[0]} right={row.def.letters[1]} score={row.score} />
@@ -313,6 +404,7 @@ export function MbtiResult({
                   強み：{row.strength}　／　負担になりやすい面：{row.strain}
                 </p>
               )}
+              <EvidenceList row={row} />
             </li>
           ))}
         </ul>
@@ -337,29 +429,59 @@ export function MbtiResult({
         </div>
       </Section>
 
-      <Section id="thinking" number={3} title="物事の捉え方と意思決定" {...sectionProps}>
+      <Section
+        id="pairs"
+        number={3}
+        title="2つの軸の組み合わせから見るスタイル"
+        lead="軸を一つずつ見るだけでなく、2つの軸を組み合わせたときの物事への向き合い方です。"
+        {...sectionProps}
+      >
+        <PairList pairs={report.pairs} />
+      </Section>
+
+      <Section id="thinking" number={4} title="物事の捉え方と意思決定" {...sectionProps}>
         <Findings items={report.thinking} />
       </Section>
 
-      <Section id="people" number={4} title="人と関わるときの特徴" {...sectionProps}>
+      <Section id="people" number={5} title="人と関わるときの特徴" {...sectionProps}>
         <Findings items={report.people} />
       </Section>
 
-      <Section id="strengths" number={5} title="強みが発揮されやすい場面" {...sectionProps}>
+      <Section id="strengths" number={6} title="強みが発揮されやすい場面" {...sectionProps}>
         <Findings items={report.strengths} />
       </Section>
 
-      <Section id="strains" number={6} title="負担を感じやすい環境" {...sectionProps}>
+      <Section id="strains" number={7} title="負担を感じやすい環境" {...sectionProps}>
         <Findings items={report.strains} />
       </Section>
 
-      <Section id="misreads" number={7} title="周囲から誤解されやすい行動" {...sectionProps}>
+      <Section
+        id="stress"
+        number={8}
+        title="負担が続いたときの反応と、回復のしかた"
+        lead="誰でも負担が続くと、ふだんの傾向が強く出たり、逆の形で出たりします。早めに気づくための目安です。"
+        {...sectionProps}
+      >
+        <StressList items={report.stress} />
+      </Section>
+
+      <Section id="misreads" number={9} title="周囲から誤解されやすい行動" {...sectionProps}>
         <Findings items={report.misreads} />
       </Section>
 
       <Section
+        id="asks"
+        number={10}
+        title="周りの人に伝えておくとよいこと"
+        lead="あなたの傾向を、身近な人に伝えるときの言い方の例です。そのまま使っても、自分の言葉に直しても構いません。"
+        {...sectionProps}
+      >
+        <Findings items={report.asks} />
+      </Section>
+
+      <Section
         id="scenes"
-        number={8}
+        number={11}
         title="職場、友人、恋愛での傾向の違い"
         lead="場面ごとの質問だけで4軸を見たものです。回答が揺れていても嘘や矛盾とは考えず、場面による違いの可能性として扱います。"
         {...sectionProps}
@@ -403,7 +525,7 @@ export function MbtiResult({
 
       <Section
         id="combos"
-        number={9}
+        number={12}
         title="回答から読み取れる特徴の組み合わせ"
         lead="一つの項目だけでなく、項目どうしの組み合わせから読み取れることです。"
         {...sectionProps}
@@ -411,7 +533,17 @@ export function MbtiResult({
         <Findings items={report.combos} empty="特に目立つ組み合わせはありませんでした。" />
       </Section>
 
-      <Section id="actions" number={10} title="試してみるとよい具体的な行動" {...sectionProps}>
+      <Section
+        id="growth"
+        number={13}
+        title="伸ばしやすい力"
+        lead="はっきり出ている傾向の反対側にある力です。苦手を直すためではなく、場面に応じて選べる行動を増やすための視点です。"
+        {...sectionProps}
+      >
+        <Findings items={report.growth} />
+      </Section>
+
+      <Section id="actions" number={14} title="試してみるとよい具体的な行動" {...sectionProps}>
         <Findings items={report.actions} />
       </Section>
 
@@ -460,7 +592,7 @@ export function MbtiResult({
 
       <section className="mt-16" aria-labelledby="mbti-match">
         <h2 id="mbti-match" className="flex items-baseline gap-3 text-2xl font-medium">
-          <span className="font-mincho text-sm text-[#22d3ee]">11</span>
+          <span className="font-mincho text-sm text-[#22d3ee]">15</span>
           どんな人と合いやすいか
         </h2>
         <p className="mt-3 text-sm leading-7 text-[#c5d4e6]">
@@ -499,7 +631,7 @@ export function MbtiResult({
 
       <section className="mt-16" aria-labelledby="mbti-compare">
         <h2 id="mbti-compare" className="flex items-baseline gap-3 text-2xl font-medium">
-          <span className="font-mincho text-sm text-[#22d3ee]">12</span>
+          <span className="font-mincho text-sm text-[#22d3ee]">16</span>
           二人の結果を比べる
         </h2>
         <p className="mt-3 text-sm leading-7 text-[#c5d4e6]">
