@@ -1,11 +1,11 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { aggregate, type StatEntry, type TestId, type TestStats } from "@/lib/diagnosis";
+import { aggregate, WORDING_VERSION, type StatEntry, type TestId, type TestStats } from "@/lib/diagnosis";
 
 const STATS_DIR = path.join(process.cwd(), "data", "stats");
 const MAX_ENTRIES = 200_000;
 
-type StatsFile = { version: 1; entries: Record<string, StatEntry> };
+type StatsFile = { version: 2; wording: number; entries: Record<string, StatEntry> };
 
 function statsPath(testId: TestId) {
   return path.join(STATS_DIR, `${testId}.json`);
@@ -14,11 +14,13 @@ function statsPath(testId: TestId) {
 async function readStats(testId: TestId): Promise<StatsFile> {
   try {
     const parsed = JSON.parse(await readFile(statsPath(testId), "utf8")) as StatsFile;
-    if (parsed?.version === 1 && parsed.entries && typeof parsed.entries === "object") return parsed;
+    if (parsed?.version === 2 && parsed.wording === WORDING_VERSION && parsed.entries && typeof parsed.entries === "object") {
+      return parsed;
+    }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-  return { version: 1, entries: {} };
+  return { version: 2, wording: WORDING_VERSION, entries: {} };
 }
 
 const queues = new Map<TestId, Promise<unknown>>();

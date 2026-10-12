@@ -6,26 +6,29 @@ import { Button } from "@/components/ui/button";
 import {
   ANSWER_OPTIONS,
   baseItemsOf,
-  MODES,
+  DEPENDS_LABEL,
+  FOLLOWUP,
+  FOLLOWUP_GAP,
   NA_LABEL,
-  nextMode,
+  nextStage,
   SCENES,
+  STAGES,
   STATE_ITEMS,
   type AnswerValue,
+  type FollowupChoice,
   type Item,
   type Mode,
 } from "@/lib/mbti/items";
 import { buildReport } from "@/lib/mbti/report";
 import { emptyMbti, loadMbti, saveMbti, type MbtiProgress } from "@/lib/mbti/storage";
+import { estimateMinutes } from "@/lib/mbti/validation";
 import { cn } from "cn";
 
-type Phase = "intro" | "base" | "stateIntro" | "state" | "result";
+type Phase = "intro" | "base" | "followup" | "stageDone" | "stateIntro" | "state" | "result";
 
 const DEFAULT_MODE: Mode = "standard";
 
-/** 同じ項目の質問が続かないよう、項目ごとに1問ずつ順番に並べる。 */
-function orderOf(mode: Mode): Item[] {
-  const items = baseItemsOf(mode);
+function roundRobin(items: Item[]) {
   const groups = new Map<string, Item[]>();
   for (const item of items) groups.set(item.measure, [...(groups.get(item.measure) ?? []), item]);
   const queues = [...groups.values()];
@@ -39,22 +42,25 @@ function orderOf(mode: Mode): Item[] {
   return order;
 }
 
-const ORDERS = Object.fromEntries(MODES.map((mode) => [mode.key, orderOf(mode.key)])) as Record<Mode, Item[]>;
-
-function minutesOf(count: number) {
-  return Math.max(1, Math.round(count / 7));
+/** 短い段階の質問が先に来るよう、段階の中では項目を1問ずつ混ぜる。 */
+function orderOf(mode: Mode): Item[] {
+  const items = baseItemsOf(mode);
+  return ([1, 2, 3, 4] as const).flatMap((tier) => roundRobin(items.filter((item) => item.tier === tier)));
 }
+
+const ORDERS = Object.fromEntries(STAGES.map((stage) => [stage.key, orderOf(stage.key)])) as Record<Mode, Item[]>;
 
 const NOTICES = [
   "公式のMBTI検査ではありません。MBTIの4軸を参考にした、このサイト独自の自己理解診断です。公式の質問や説明文は使っていません。",
   "4軸の傾向と、人との関わり方の項目ごとの回答を分析の中心にします。16タイプは、結果を理解するための補助として表示します。",
   "病気やパーソナリティ障害、二重人格などの医学的な診断は行いません。",
-  "精度はまだ検証していないため、平均との比較や正確さを示す数値は出しません。",
+  "追加回答で分析する項目が増えます。長いほど必ず正確、最高精度、といった表示はしていません。",
 ];
 
 const HOW_TO = [
   "理想の自分ではなく、ふだんの自分の行動に近いものを選んでください。",
-  "場面が想像できないときや経験がないときは、「判断できない／経験がない」を選べます。「どちらともいえない」とは別に扱います。",
+  "「状況による」と「経験がない／判断できない」は、中間の「どちらともいえない」とは別に扱います。点数の真ん中や低い点にはしません。",
+  "「状況による」を選ぶと、短い補足が出ることがあります。飛ばしても構いません。補足は基本の点数には使いません。",
   "恋愛の経験がなくても答えられます。恋人がいない場合は、家族や親友など親しい相手を思い浮かべてください。",
   "回答はこのブラウザの中だけに保存されます。途中でやめても続きから答えられます。",
   "短い段階の質問は、長い段階にすべて含まれています。あとから長い段階に進むと、それまでの回答を引き継いで、増えた質問だけに答えます。",
@@ -64,13 +70,19 @@ function answeredCount(progress: MbtiProgress, items: Item[]) {
   return items.filter((item) => progress.answers[item.id]).length;
 }
 
+function followupCount(progress: MbtiProgress) {
+  return Object.keys(progress.followups).length;
+}
+
 export function MbtiView() {
   const [progress, setProgress] = useState<MbtiProgress | null>(null);
   const [phase, setPhase] = useState<Phase>("intro");
   const [index, setIndex] = useState(0);
+  const [followupOf, setFollowupOf] = useState<Item | null>(null);
   const [persistError, setPersistError] = useState(false);
   const progressRef = useRef<MbtiProgress | null>(null);
   const advancing = useRef(false);
+  const shownAt = useRef(0);
 
   const commit = useCallback((next: MbtiProgress) => {
     progressRef.current = next;
@@ -91,9 +103,47 @@ export function MbtiView() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    shownAt.current = Date.now();
+  }, [index, phase, followupOf]);
+
   const mode = progress?.mode ?? DEFAULT_MODE;
   const order = ORDERS[mode];
   const items = phase === "state" ? STATE_ITEMS : order;
+
+  function elapsed() {
+    return Math.min(Date.now() - shownAt.current, 10 * 60 * 1000);
+  }
+
+  function withTiming(current: MbtiProgress, id: string): MbtiProgress {
+    return { ...current, timings: { ...current.timings, [id]: elapsed() } };
+  }
+
+  function finish(current: MbtiProgress) {
+    if (phase === "state") {
+      commit({ ...current, stateDone: true });
+      setPhase("result");
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    const key = current.mode ?? DEFAULT_MODE;
+    if (nextStage(key)) {
+      setPhase("stageDone");
+    } else {
+      setPhase(current.stateDone ? "result" : "stateIntro");
+    }
+    window.scrollTo({ top: 0 });
+  }
+
+  function advanceAfter(current: MbtiProgress, list: Item[]) {
+    const unanswered = (i: number) => !current.answers[list[i].id];
+    const after = list.findIndex((_, i) => i > index && unanswered(i));
+    const first = list.findIndex((_, i) => unanswered(i));
+    if (after !== -1) setIndex(after);
+    else if (first !== -1) setIndex(first);
+    else if (index < list.length - 1) setIndex(index + 1);
+    else finish(current);
+  }
 
   const choose = useCallback(
     (value: AnswerValue) => {
@@ -101,31 +151,49 @@ export function MbtiView() {
       if (!current || advancing.current) return;
       const list = phase === "state" ? STATE_ITEMS : ORDERS[current.mode ?? DEFAULT_MODE];
       const item = list[index];
-      const next: MbtiProgress = {
-        ...current,
-        answers: { ...current.answers, [item.id]: { value, version: item.version } },
-      };
+      const previous = current.answers[item.id];
+      const changed = previous && previous.value !== value;
+      const followups = { ...current.followups };
+      if (value !== "depends") delete followups[item.id];
+      const next: MbtiProgress = withTiming(
+        {
+          ...current,
+          answers: { ...current.answers, [item.id]: { value, version: item.version } },
+          followups,
+          changes: changed ? { ...current.changes, [item.id]: (current.changes[item.id] ?? 0) + 1 } : current.changes,
+          followupGap: current.followupGap + 1,
+        },
+        item.id,
+      );
       commit(next);
       advancing.current = true;
       window.setTimeout(() => {
         advancing.current = false;
-        const open = (i: number) => !next.answers[list[i].id];
-        const after = list.findIndex((_, i) => i > index && open(i));
-        const first = list.findIndex((_, i) => open(i));
-        if (after !== -1) setIndex(after);
-        else if (first !== -1) setIndex(first);
-        else if (index < list.length - 1) setIndex(index + 1);
-        else finish(next);
+        if (phase === "base" && value === "depends" && next.followupGap >= FOLLOWUP_GAP) {
+          setFollowupOf(item);
+          setPhase("followup");
+          return;
+        }
+        advanceAfter(next, list);
       }, 160);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [commit, index, phase],
   );
 
-  function finish(current: MbtiProgress) {
-    if (phase === "state") commit({ ...current, stateDone: true });
-    setPhase(phase === "base" && !current.stateDone ? "stateIntro" : "result");
-    window.scrollTo({ top: 0 });
+  function chooseFollowup(value: FollowupChoice | "skip") {
+    const current = progressRef.current;
+    const item = followupOf;
+    if (!current || !item) return;
+    const next: MbtiProgress = {
+      ...current,
+      followups: { ...current.followups, [item.id]: { value, version: FOLLOWUP.version } },
+      followupGap: 0,
+    };
+    commit(next);
+    setFollowupOf(null);
+    setPhase("base");
+    advanceAfter(next, ORDERS[current.mode ?? DEFAULT_MODE]);
   }
 
   useEffect(() => {
@@ -136,6 +204,11 @@ export function MbtiView() {
       if (event.key === "0") {
         event.preventDefault();
         choose("na");
+        return;
+      }
+      if (event.key === "9") {
+        event.preventDefault();
+        choose("depends");
         return;
       }
       const value = Number(event.key);
@@ -149,7 +222,7 @@ export function MbtiView() {
   }, [choose, phase]);
 
   const report = useMemo(
-    () => (progress && phase === "result" ? buildReport(progress.answers, mode) : null),
+    () => (progress && phase === "result" ? buildReport(progress.answers, mode, progress.followups) : null),
     [progress, phase, mode],
   );
 
@@ -175,26 +248,34 @@ export function MbtiView() {
     commit({ ...progressRef.current!, mode: key });
   }
 
+  function goToResults(current: MbtiProgress) {
+    setPhase(current.stateDone ? "result" : "stateIntro");
+    window.scrollTo({ top: 0 });
+  }
+
   if (phase === "intro") {
     const answered = answeredCount(progress, order);
     const finished = answered === order.length;
     const anyAnswered = Object.keys(progress.answers).length > 0;
+    const stage = STAGES.find((item) => item.key === mode)!;
     return (
       <div className="mx-auto w-full max-w-2xl px-5 py-10 md:py-16">
         <p className="text-sm text-[#22d3ee]">
-          {MODES.map((item) => baseItemsOf(item.key).length).join(" / ")}問 · 4段階から選べます
+          {STAGES.map((item) => baseItemsOf(item.key).length).join(" / ")}問 · 4段階から選べます
         </p>
         <h1 className="font-mincho mt-3 text-4xl leading-tight md:text-5xl">4軸タイプ診断</h1>
         <p className="mt-2 text-sm text-[#8ea3bd]">MBTIの4軸を参考にした独自の自己理解診断</p>
         <p className="mt-5 text-[15px] leading-8 text-[#cfdcec]">
-          人との交流と一人の時間、物事の捉え方、判断で重視すること、計画と柔軟さの4つの軸と、会話・連絡・距離感・衝突時の対応など人との関わり方を測ります。どんな人と合いやすいかや、二人の結果の比べ方も表示します。
+          人との交流と一人の時間、物事の捉え方、判断で重視すること、計画と柔軟さの4つの軸と、会話・連絡・距離感・衝突時の対応など人との関わり方を測ります。短い段階では概要を出し、追加の回答で分析する項目が増えます。
         </p>
 
         <div className="mt-6 rounded-2xl border border-white/15 px-4 py-4 text-sm leading-7 text-[#cfdcec]">
           <ul className="space-y-2">
             {NOTICES.map((line) => (
               <li key={line} className="flex gap-2">
-                <span aria-hidden className="text-[#8ea3bd]">・</span>
+                <span aria-hidden className="text-[#8ea3bd]">
+                  ・
+                </span>
                 <span>{line}</span>
               </li>
             ))}
@@ -202,11 +283,9 @@ export function MbtiView() {
         </div>
 
         <h2 className="font-mincho mt-10 text-xl">段階を選ぶ</h2>
-        <p className="mt-2 text-sm leading-7 text-[#c5d4e6]">
-          質問が多いほど、一つひとつの結果が安定し、読み取れることも増えます。
-        </p>
+        <p className="mt-2 text-sm leading-7 text-[#c5d4e6]">追加回答で分析する項目が増えます。所要時間は、このブラウザでの実測があればそれに合わせます。</p>
         <div className="mt-4 grid gap-3" role="radiogroup" aria-label="診断の段階">
-          {MODES.map((item) => {
+          {STAGES.map((item) => {
             const list = ORDERS[item.key];
             const done = answeredCount(progress, list);
             const selected = item.key === mode;
@@ -226,14 +305,23 @@ export function MbtiView() {
               >
                 <span className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="text-lg font-medium">
-                    {item.label}
-                    <span className="font-mincho ml-3 text-[#22d3ee] tabular-nums">{list.length}問</span>
+                    {item.name}
+                    <span className="font-mincho ml-3 text-[#22d3ee] tabular-nums">{item.label}</span>
                   </span>
                   <span className="text-xs text-[#8ea3bd] tabular-nums">
-                    約{minutesOf(list.length)}分{done > 0 && ` · 回答済み ${done}/${list.length}`}
+                    約{estimateMinutes(list.length, progress.timings)}分{done > 0 && ` · 回答済み ${done}/${list.length}`}
                   </span>
                 </span>
                 <span className="mt-1 block text-sm leading-7 text-[#c5d4e6]">{item.desc}</span>
+                <span className="mt-2 block text-xs leading-6 text-[#8ea3bd]">
+                  測ること：{item.measures}
+                </span>
+                <span className="mt-1 block text-xs leading-6 text-[#8ea3bd]">
+                  新しく分かること：{item.adds.join("／")}
+                </span>
+                <span className="mt-1 block text-xs leading-6 text-[#66798f]">
+                  まだ判断できないこと：{item.notYet.join("／")}
+                </span>
               </button>
             );
           })}
@@ -243,7 +331,9 @@ export function MbtiView() {
         <ul className="mt-3 space-y-2 text-sm leading-7 text-[#c5d4e6]">
           {HOW_TO.map((line) => (
             <li key={line} className="flex gap-2">
-              <span aria-hidden className="text-[#8ea3bd]">・</span>
+              <span aria-hidden className="text-[#8ea3bd]">
+                ・
+              </span>
               <span>{line}</span>
             </li>
           ))}
@@ -261,8 +351,8 @@ export function MbtiView() {
             {finished
               ? "結果を見る"
               : answered > 0
-                ? `続きから（${answered}/${order.length}）`
-                : `${MODES.find((item) => item.key === mode)!.label}ではじめる`}
+                ? `続きから（基本 ${answered}/${order.length}）`
+                : `${stage.name}（${stage.label}）ではじめる`}
           </Button>
           {anyAnswered && (
             <Button
@@ -274,6 +364,51 @@ export function MbtiView() {
               }}
             >
               回答をすべて消す
+            </Button>
+          )}
+        </div>
+        {saveWarning}
+      </div>
+    );
+  }
+
+  if (phase === "stageDone") {
+    const upgrade = nextStage(mode);
+    const remaining = upgrade ? ORDERS[upgrade.key].length - answeredCount(progress, ORDERS[upgrade.key]) : 0;
+    const stage = STAGES.find((item) => item.key === mode)!;
+    return (
+      <div className="mx-auto w-full max-w-2xl px-5 py-10 md:py-16">
+        <p className="text-sm text-[#22d3ee]">{stage.label}が終わりました</p>
+        <h1 className="font-mincho mt-3 text-3xl leading-tight">ここまでの結果を見るか、次の段階へ進みます</h1>
+        <p className="mt-5 text-[15px] leading-8 text-[#cfdcec]">
+          追加回答で分析する項目が増えます。ここまでの回答は引き継ぎます。
+        </p>
+        {upgrade && (
+          <div className="mt-6 rounded-2xl border border-white/15 px-4 py-4 text-sm leading-7 text-[#c5d4e6]">
+            <p className="font-medium text-[#eef6ff]">
+              次は{upgrade.name}（{upgrade.label}）
+            </p>
+            <p className="mt-1">{upgrade.desc}</p>
+            <p className="mt-1 text-xs text-[#8ea3bd]">新しく分かること：{upgrade.adds.join("／")}</p>
+            <p className="mt-1 text-xs text-[#66798f]">まだ判断できないこと：{upgrade.notYet.join("／")}</p>
+          </div>
+        )}
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <Button className="h-12 px-6 text-base" onClick={() => goToResults(progress)}>
+            ここまでの結果を見る
+          </Button>
+          {upgrade && (
+            <Button
+              variant="outline"
+              className="h-12 px-6 text-base"
+              onClick={() => {
+                selectMode(upgrade.key);
+                const list = ORDERS[upgrade.key];
+                if (answeredCount(progress, list) < list.length) start(list, "base");
+                else goToResults({ ...progress, mode: upgrade.key });
+              }}
+            >
+              回答を引き継いで、次の段階へ進む{remaining > 0 ? `（あと${remaining}問）` : ""}
             </Button>
           )}
         </div>
@@ -310,20 +445,25 @@ export function MbtiView() {
   }
 
   if (phase === "result" && report) {
-    const upgrade = nextMode(mode);
+    const upgrade = nextStage(mode);
     return (
       <MbtiResult
         report={report}
         next={
           upgrade
             ? {
-                label: upgrade.label,
+                label: `${upgrade.name}（${upgrade.label}）`,
                 total: ORDERS[upgrade.key].length,
                 remaining: ORDERS[upgrade.key].length - answeredCount(progress, ORDERS[upgrade.key]),
                 desc: upgrade.desc,
+                adds: upgrade.adds,
               }
             : null
         }
+        answers={progress.answers}
+        timings={progress.timings}
+        followups={progress.followups}
+        changes={progress.changes}
         onUpgrade={() => {
           if (!upgrade) return;
           selectMode(upgrade.key);
@@ -346,18 +486,61 @@ export function MbtiView() {
     );
   }
 
+  if (phase === "followup" && followupOf) {
+    const pending = followupCount(progress);
+    return (
+      <div className="mx-auto flex w-full max-w-2xl flex-col px-5 py-6 md:py-12">
+        <div className="flex items-center justify-between text-xs text-[#8ea3bd]">
+          <span>補足質問（基本の点数には使いません）</span>
+          <span className="tabular-nums">基本の残り {order.length - answeredCount(progress, order)}問</span>
+        </div>
+        <p className="mt-3 text-sm leading-7 text-[#c5d4e6]">
+          直前の質問「{followupOf.text}」に「{DEPENDS_LABEL}」と答えました。
+        </p>
+        <p className="mt-6 min-h-[4rem] text-2xl leading-[1.6] font-medium md:text-[1.6rem]">{FOLLOWUP.text}</p>
+        <div className="mt-8 grid gap-2.5">
+          {FOLLOWUP.options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => chooseFollowup(option.value)}
+              className="flex h-14 items-center rounded-2xl border border-white/15 px-5 text-left text-base hover:border-white/40 hover:bg-white/5"
+            >
+              {option.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => chooseFollowup("skip")}
+            className="mt-2 flex h-12 items-center rounded-2xl border border-dashed border-white/20 px-5 text-left text-sm text-[#c5d4e6] hover:border-white/40"
+          >
+            この補足は飛ばす
+          </button>
+        </div>
+        <p className="mt-6 text-xs text-[#8ea3bd]">これまでに答えた補足は{pending}問です。補足は基本{order.length}問とは別に数えます。</p>
+        {saveWarning}
+      </div>
+    );
+  }
+
   const item = items[index];
   const selected = progress.answers[item.id]?.value;
   const answered = answeredCount(progress, items);
+  const extras = followupCount(progress);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col px-5 py-6 md:py-12">
       <div className="flex items-center justify-between text-xs text-[#8ea3bd]">
         <span>{phase === "state" ? "いまの状態" : `${SCENES[item.scene]}の場面`}</span>
         <span className="tabular-nums">
-          {index + 1} / {items.length}
+          {phase === "state"
+            ? `${index + 1} / ${items.length}`
+            : `基本 ${answered} / ${items.length}（残り ${items.length - answered}）`}
         </span>
       </div>
+      {phase === "base" && extras > 0 && (
+        <p className="mt-1 text-xs text-[#8ea3bd]">補足質問は別に{extras}問答えています（基本の点数には使いません）</p>
+      )}
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10" aria-hidden>
         <div
           className="h-full rounded-full bg-[#22d3ee] transition-[width] duration-300"
@@ -400,10 +583,26 @@ export function MbtiView() {
         ))}
         <button
           type="button"
+          aria-pressed={selected === "depends"}
+          onClick={() => choose("depends")}
+          className={cn(
+            "mt-2 flex h-12 items-center gap-4 rounded-2xl border border-dashed px-5 text-left text-sm transition-colors",
+            selected === "depends"
+              ? "border-[#22d3ee] bg-[#22d3ee] text-[#031018]"
+              : "border-white/20 text-[#c5d4e6] hover:border-white/40 hover:bg-white/5",
+          )}
+        >
+          <span aria-hidden className="hidden w-7 shrink-0 text-center text-xs text-[#8ea3bd] sm:inline">
+            9
+          </span>
+          {DEPENDS_LABEL}
+        </button>
+        <button
+          type="button"
           aria-pressed={selected === "na"}
           onClick={() => choose("na")}
           className={cn(
-            "mt-2 flex h-12 items-center gap-4 rounded-2xl border border-dashed px-5 text-left text-sm transition-colors",
+            "flex h-12 items-center gap-4 rounded-2xl border border-dashed px-5 text-left text-sm transition-colors",
             selected === "na"
               ? "border-[#22d3ee] bg-[#22d3ee] text-[#031018]"
               : "border-white/20 text-[#c5d4e6] hover:border-white/40 hover:bg-white/5",
@@ -447,3 +646,4 @@ export function MbtiView() {
     </div>
   );
 }
+

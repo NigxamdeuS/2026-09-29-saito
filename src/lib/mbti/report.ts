@@ -1,4 +1,5 @@
 import {
+  ASSERT_FACETS,
   AXES,
   BIPOLARS,
   bipolarDef,
@@ -17,27 +18,40 @@ import {
   type Side,
 } from "@/lib/mbti/content";
 import {
-  ANSWER_OPTIONS,
+  addedItemsOf,
+  answerLabel,
   baseItemsOf,
+  FOLLOWUP,
+  hasAnalysis,
+  isScore,
   itemsOf,
+  previousStage,
+  stageOf,
+  STAGES,
+  type AnalysisKey,
   type BipolarKey,
   type MeasureKey,
   type Mode,
   type Scene,
 } from "@/lib/mbti/items";
 import {
+  breakdownOf,
   displayScore,
   sceneGaps,
   sceneLabel,
   sceneScores,
+  SCORE_FORMULA,
   scoreAll,
   scoreItems,
   sideOf,
   typeOf,
   type Answers,
+  type BreakdownRow,
   type Results,
   type TypeResult,
 } from "@/lib/mbti/scoring";
+import type { Followups } from "@/lib/mbti/storage";
+import { completedStage } from "@/lib/mbti/validation";
 
 /** 解釈（text）と、その根拠になった回答の傾向（basis）を分けて持つ。 */
 export type Finding = { text: string; basis: string };
@@ -64,6 +78,7 @@ export type Quality = {
   answered: number;
   total: number;
   na: number;
+  depends: number;
   neutral: number;
   notes: Finding[];
 };
@@ -85,8 +100,11 @@ export type FacetRow = { def: FacetDef; score: number | null; side: Side | null 
 
 export type FacetReport = { axis: AxisDef; rows: FacetRow[]; note: Finding };
 
-/** 側面を分析するのに必要な、1側面あたりの質問数。 */
-export const FACET_MIN_ITEMS = 6;
+/** 側面を分析するのに必要な、1側面あたりの質問数（60問では各4問）。 */
+export const FACET_MIN_ITEMS = 4;
+export const ASSERT_FACET_MIN_ITEMS = 2;
+
+export type AssertFacetRow = { def: FacetDef; score: number | null; side: Side | null };
 
 export type Report = {
   mode: Mode;
@@ -95,7 +113,10 @@ export type Report = {
   held: string[];
   /** この段階では出題していない項目。 */
   unmeasured: string[];
+  /** 回答済みの質問から完了しているいちばん長い段階。 */
+  completed: Mode | null;
   facets: FacetReport[];
+  assertFacets: AssertFacetRow[];
   summary: Finding[];
   axes: AxisRow[];
   pairs: PairReport[];
@@ -107,15 +128,20 @@ export type Report = {
   misreads: Finding[];
   asks: Finding[];
   growth: Finding[];
+  changes: Finding[];
   quality: Quality;
   sceneTable: { def: AxisDef; cells: Partial<Record<Scene, Side>> }[];
   sceneNotes: Finding[];
+  followupNotes: Finding[];
   combos: Finding[];
   actions: Finding[];
   values: { label: string; score: number | null; measured: boolean }[];
   states: { label: string; score: number | null }[];
   stateNotes: Finding[];
   domains: DomainReport[];
+  breakdown: BreakdownRow[];
+  formula: string;
+  available: AnalysisKey[];
 };
 
 export const COMPARE_SCENES: Scene[] = ["work", "friends", "close"];
@@ -181,16 +207,12 @@ function finding(def: BipolarDef, results: Results, pick: (pole: Pole) => string
 
 const ALL_BIPOLAR = BIPOLARS.map((def) => def.key);
 
-function answerLabel(value: number) {
-  return ANSWER_OPTIONS.find((option) => option.value === value)!.label;
-}
-
 /** 軸のスコアを、どの質問への回答が動かしたか。寄っている側を押した回答を強い順に。 */
 function evidenceOf(def: AxisDef, answers: Answers, side: Side | null, mode: Mode): Evidence[] {
   if (side === null) return [];
   const rows = itemsOf(def.key, mode).flatMap((item) => {
     const answer = answers[item.id];
-    if (!answer || answer.version !== item.version || answer.value === "na") return [];
+    if (!answer || answer.version !== item.version || !isScore(answer.value)) return [];
     const pull = item.direction === 1 ? answer.value - 3 : 3 - answer.value;
     return pull === 0 ? [] : [{ item, value: answer.value, pull }];
   });
@@ -258,6 +280,7 @@ function facetsOf(answers: Answers, mode: Mode): FacetReport[] {
 function qualityOf(answers: Answers, results: Results, mode: Mode): Quality {
   const baseItems = baseItemsOf(mode);
   let na = 0;
+  let depends = 0;
   let neutral = 0;
   let sum = 0;
   let numeric = 0;
@@ -266,6 +289,10 @@ function qualityOf(answers: Answers, results: Results, mode: Mode): Quality {
     if (!answer || answer.version !== item.version) continue;
     if (answer.value === "na") {
       na += 1;
+      continue;
+    }
+    if (answer.value === "depends") {
+      depends += 1;
       continue;
     }
     numeric += 1;
@@ -278,7 +305,7 @@ function qualityOf(answers: Answers, results: Results, mode: Mode): Quality {
     if (neutral / numeric >= 0.4) {
       notes.push({
         text: "「どちらともいえない」の回答が多めでした。中央の回答が多いと、どの項目もスコアが中央付近に寄りやすくなります。迷った質問は、ふだんの自分に少しでも近いほうを選ぶと、傾向が読み取りやすくなります。",
-        basis: `「どちらともいえない」${neutral}問／回答${numeric}問`,
+        basis: `「どちらともいえない」${neutral}問／採点した回答${numeric}問`,
       });
     }
     if (mean >= 3.9 || mean <= 2.1) {
@@ -291,25 +318,140 @@ function qualityOf(answers: Answers, results: Results, mode: Mode): Quality {
   }
   if (na >= Math.max(5, Math.round(baseItems.length / 8))) {
     notes.push({
-      text: "「判断できない／経験がない」の回答が多めでした。その質問は採点に入れていないため、残りの質問だけで出した結果になっています。経験の少ない場面については、結果を控えめに受け取ってください。",
-      basis: `「判断できない／経験がない」${na}問／${baseItems.length}問`,
+      text: "「経験がない／判断できない」の回答が多めでした。その質問は採点に入れていないため、残りの質問だけで出した結果になっています。経験の少ない場面については、結果を控えめに受け取ってください。短い診断であること自体は、回答の信用できない理由にはしていません。",
+      basis: `「経験がない／判断できない」${na}問／${baseItems.length}問`,
+    });
+  }
+  if (depends >= Math.max(4, Math.round(baseItems.length / 10))) {
+    notes.push({
+      text: "「状況による」の回答が多めでした。この選択は中間点にも低得点にもしていません。補足で答えた違いは、場面差の説明にだけ使っています。",
+      basis: `「状況による」${depends}問／${baseItems.length}問`,
     });
   }
   for (const def of AXES) {
     if (results[def.key].score === null) continue;
     const items = itemsOf(def.key, mode);
-    const forward = scoreItems(items.filter((item) => item.direction === 1), answers, 3).score;
-    const reverse = scoreItems(items.filter((item) => item.direction === -1), answers, 3).score;
+    const forward = scoreItems(
+      items.filter((item) => item.direction === 1),
+      answers,
+      3,
+    ).score;
+    const reverse = scoreItems(
+      items.filter((item) => item.direction === -1),
+      answers,
+      3,
+    ).score;
     if (forward === null || reverse === null || Math.abs(forward - reverse) < 40) continue;
     notes.push({
       text: `「${def.title}」では、言い方が逆向きの質問どうしで、答えの向きがそろっていませんでした。質問の受け取り方や、場面による違いが影響している可能性があります。この軸の結果は控えめに受け取ってください。`,
       basis: `${def.letters[1]}側を聞く質問だけのスコア ${displayScore(forward)} ／ ${def.letters[0]}側を聞く質問だけのスコア ${displayScore(reverse)}`,
     });
   }
-  return { answered: answeredBase(answers, mode), total: baseItems.length, na, neutral, notes };
+  return { answered: answeredBase(answers, mode), total: baseItems.length, na, depends, neutral, notes };
 }
 
-export function buildReport(answers: Answers, mode: Mode = "complete"): Report {
+function open(mode: Mode, key: AnalysisKey) {
+  return hasAnalysis(mode, key);
+}
+
+function changeNotes(answers: Answers, mode: Mode): Finding[] {
+  const previous = previousStage(mode);
+  if (!previous) return [];
+  const before = scoreAll(answers, previous.key);
+  const after = scoreAll(answers, mode);
+  const added = addedItemsOf(mode);
+  const notes: Finding[] = [];
+  notes.push({
+    text: `${previous.label}から${stageOf(mode).label}へ進み、${added.length}問の回答が加わりました。加えた質問は、同じ項目を別の側面・別の場面から確認するものです。`,
+    basis: `追加した質問ID：${added.map((item) => item.id).join("、")}`,
+  });
+  for (const def of BIPOLARS) {
+    const a = before[def.key];
+    const b = after[def.key];
+    if (a.total === 0 && b.total > 0) {
+      notes.push({
+        text:
+          b.score === null
+            ? `「${def.title}」はこの段階で初めて測りましたが、採点できる回答が足りないため保留しています。`
+            : `「${def.title}」はこの段階で初めて測り、「${sideText(def, b.score)}」という結果になりました。`,
+        basis: basisOf(def, b.score),
+      });
+      continue;
+    }
+    if (a.total === 0 || b.total === 0) continue;
+    if (a.score === null && b.score !== null) {
+      notes.push({
+        text: `「${def.title}」は、追加の回答で結果が出ました（${sideText(def, b.score)}）。`,
+        basis: `${previous.label}時点は保留 ／ ${basisOf(def, b.score)}`,
+      });
+    } else if (a.score !== null && b.score !== null && Math.abs(a.score - b.score) >= 8) {
+      notes.push({
+        text: `「${def.title}」は、${previous.label}までの結果（${sideText(def, a.score)}）から、追加回答のあと「${sideText(def, b.score)}」になりました。`,
+        basis: `${previous.label} ${displayScore(a.score)} → ${stageOf(mode).label} ${displayScore(b.score)}`,
+      });
+    }
+  }
+  for (const value of VALUES) {
+    const a = before[value.key];
+    const b = after[value.key];
+    if (a.total === 0 && b.total > 0 && b.score !== null) {
+      notes.push({
+        text: `大切にしていること「${value.label}」は、この段階で初めて測りました（尺度上の傾向スコア ${displayScore(b.score)}）。`,
+        basis: `価値観「${value.label}」：${displayScore(b.score)}`,
+      });
+    }
+  }
+  return notes;
+}
+
+function followupNotes(answers: Answers, followups: Followups): Finding[] {
+  const counts = Object.fromEntries(FOLLOWUP.options.map((option) => [option.value, 0])) as Record<
+    (typeof FOLLOWUP.options)[number]["value"],
+    number
+  >;
+  let skip = 0;
+  let used = 0;
+  for (const [id, entry] of Object.entries(followups)) {
+    if (answers[id]?.value !== "depends") continue;
+    if (entry.value === "skip") {
+      skip += 1;
+      continue;
+    }
+    counts[entry.value] += 1;
+    used += 1;
+  }
+  if (used + skip === 0) return [];
+  const ranked = FOLLOWUP.options.filter((option) => counts[option.value] > 0).sort((a, b) => counts[b.value] - counts[a.value]);
+  const notes: Finding[] = [
+    {
+      text: `「状況による」を選んだ質問に、補足で答えたのは${used}問です（スキップ${skip}問）。補足は基本の点数には入れていません。`,
+      basis: `補足回答 ${used}問、スキップ ${skip}問`,
+    },
+  ];
+  if (ranked.length > 0) {
+    notes.push({
+      text: `当てはまりやすいと答えた状況は、${ranked
+        .map((option) => `「${option.label}」（${counts[option.value]}問）`)
+        .join("、")}でした。同じ質問でも、相手や場面が変わると答えが分かれやすい可能性があります。`,
+      basis: ranked.map((option) => `${option.label} ${counts[option.value]}`).join(" ／ "),
+    });
+  }
+  return notes;
+}
+
+function assertFacetsOf(answers: Answers, mode: Mode): AssertFacetRow[] {
+  if (!open(mode, "honestyDetail")) return [];
+  const items = itemsOf("assert", mode);
+  const rows = ASSERT_FACETS.map((def) => {
+    const group = items.filter((item) => item.facet === def.key);
+    if (group.length < ASSERT_FACET_MIN_ITEMS) return null;
+    const score = scoreItems(group, answers, ASSERT_FACET_MIN_ITEMS).score;
+    return { def, score, side: sideOf(score) };
+  }).filter((row): row is AssertFacetRow => row !== null);
+  return rows;
+}
+
+export function buildReport(answers: Answers, mode: Mode = "complete", followups: Followups = {}): Report {
   const results = scoreAll(answers, mode);
   const type = typeOf(results);
   const scoreOf = (key: MeasureKey) => results[key].score;
@@ -375,10 +517,12 @@ export function buildReport(answers: Answers, mode: Mode = "complete"): Report {
     ];
   });
 
-  const thinking: Finding[] = (["SN", "TF", "JP"] as const).map((key) => ({
-    text: describe(bipolarDef(key), scoreOf(key)),
-    basis: basisOf(bipolarDef(key), scoreOf(key)),
-  }));
+  const thinking: Finding[] = open(mode, "decision")
+    ? (["SN", "TF", "JP"] as const).map((key) => ({
+        text: describe(bipolarDef(key), scoreOf(key)),
+        basis: basisOf(bipolarDef(key), scoreOf(key)),
+      }))
+    : [];
 
   const people: Finding[] = (["EI", "conversation", "initiative", "affection", "assert"] as const)
     .filter(measured)
@@ -392,7 +536,9 @@ export function buildReport(answers: Answers, mode: Mode = "complete"): Report {
   );
   const misreads = top.slice(0, 4).map((key) => finding(bipolarDef(key), results, (pole) => pole.misread));
 
-  const stress: StressFinding[] = top
+  const stress: StressFinding[] = !open(mode, "asks")
+    ? []
+    : top
     .filter((key) => poleOf(bipolarDef(key), sideOf(scoreOf(key)))!.stress)
     .slice(0, 4)
     .map((key) => {
@@ -401,9 +547,13 @@ export function buildReport(answers: Answers, mode: Mode = "complete"): Report {
       return { text: pole.stress!, recover: pole.recover!, basis: basisOf(def, scoreOf(key)) };
     });
 
-  const asks = top.slice(0, 6).map((key) => finding(bipolarDef(key), results, (pole) => pole.ask));
+  const asks = open(mode, "asks")
+    ? top.slice(0, 6).map((key) => finding(bipolarDef(key), results, (pole) => pole.ask))
+    : [];
 
-  const growth: Finding[] = top.slice(0, 3).map((key) => {
+  const growth: Finding[] = !open(mode, "growth")
+    ? []
+    : top.slice(0, 3).map((key) => {
     const def = bipolarDef(key);
     const side = sideOf(scoreOf(key));
     const own = poleOf(def, side)!;
@@ -424,8 +574,10 @@ export function buildReport(answers: Answers, mode: Mode = "complete"): Report {
     return { def, cells };
   });
 
-  const sceneNotes: Finding[] = sceneGaps(ALL_BIPOLAR, answers, mode)
-    .slice(0, mode === "complete" ? 6 : 4)
+  const sceneNotes: Finding[] = !open(mode, "scenes")
+    ? []
+    : sceneGaps(ALL_BIPOLAR, answers, mode)
+    .slice(0, 6)
     .map((gap) => {
       const def = bipolarDef(gap.measure as BipolarKey);
       return {
@@ -465,7 +617,9 @@ export function buildReport(answers: Answers, mode: Mode = "complete"): Report {
     });
   }
 
-  const domains: DomainReport[] = DOMAINS.map((domain) => {
+  const domains: DomainReport[] = !open(mode, "match")
+    ? []
+    : DOMAINS.map((domain) => {
     const keys = clearest(domain.measures, results).slice(0, 3);
     const defs = keys.map((key) => bipolarDef(key));
     const complement = domain.complementAxes
@@ -488,6 +642,7 @@ export function buildReport(answers: Answers, mode: Mode = "complete"): Report {
       key: domain.key,
       label: domain.label,
       note: [
+        "一人分の回答からの相手像の提案です。実際の二人の相性を測定したものではありません。MBTIタイプや性別だけでは決めていません。",
         domain.note,
         missing.length > 0
           ? `この段階では「${missing.map((key) => bipolarDef(key).title).join("」「")}」を測っていないため、それ以外の項目から考えています。`
@@ -511,13 +666,18 @@ export function buildReport(answers: Answers, mode: Mode = "complete"): Report {
     };
   });
 
+  const sceneTableRows = open(mode, "scenes") ? sceneTable : [];
+  const available = STAGES.filter((stage) => stage.tier <= stageOf(mode).tier).flatMap((stage) => stage.analyses);
+
   return {
     mode,
     results,
     type,
     held,
     unmeasured,
-    facets: facetsOf(answers, mode),
+    completed: completedStage(answers),
+    facets: open(mode, "facets") ? facetsOf(answers, mode) : [],
+    assertFacets: assertFacetsOf(answers, mode),
     summary,
     axes,
     pairs,
@@ -529,15 +689,20 @@ export function buildReport(answers: Answers, mode: Mode = "complete"): Report {
     misreads,
     asks,
     growth,
+    changes: open(mode, "changes") ? changeNotes(answers, mode) : [],
     quality: qualityOf(answers, results, mode),
-    sceneTable,
-    sceneNotes,
+    sceneTable: sceneTableRows,
+    sceneNotes: open(mode, "scenes") ? [...sceneNotes, ...followupNotes(answers, followups)] : followupNotes(answers, followups),
+    followupNotes: followupNotes(answers, followups),
     combos,
     actions,
     values,
     states,
     stateNotes,
     domains,
+    breakdown: breakdownOf(results),
+    formula: SCORE_FORMULA,
+    available,
   };
 }
 

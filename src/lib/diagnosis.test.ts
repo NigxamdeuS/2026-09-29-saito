@@ -2,13 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   aggregate,
-  dissociationBand,
+  dissociationFrequency,
   isCompleteAnswers,
   MIN_GROUP_SIZE,
-  rsesFromFivePoint,
   scoreTest,
-  SELF_ESTEEM_REFERENCES,
   TESTS,
+  WORDING_VERSION,
   type StatEntry,
 } from "@/lib/diagnosis";
 import { emptyProgress, sanitizeProgress } from "@/lib/diagnosis-storage";
@@ -43,14 +42,9 @@ describe("自信度診断", () => {
     assert.equal(scores.people, 1);
   });
 
-  it("研究の平均を5件法から4件法の40点満点に戻す", () => {
-    assert.equal(rsesFromFivePoint(3), 2.5);
-    assert.equal(rsesFromFivePoint(5), 4);
-    assert.equal(rsesFromFivePoint(1), 1);
-    assert.deepEqual(
-      SELF_ESTEEM_REFERENCES.map((reference) => Number(reference.value.toFixed(1))),
-      [24.1, 25.6, 27.1, 27.8],
-    );
+  it("自己効力感の尺度ではないことを説明に含む", () => {
+    assert.ok(TESTS.confidence.instructions.some((line) => line.includes("自己効力感")));
+    assert.ok(TESTS.confidence.instructions.some((line) => line.includes("平均値や検証結果はそのまま使いません")));
   });
 });
 
@@ -65,13 +59,12 @@ describe("解離傾向チェック", () => {
     assert.ok(Math.abs(scores.total - (60 * 6) / 28) < 1e-9);
   });
 
-  it("点数に応じた区分を返す", () => {
-    assert.equal(dissociationBand(0).label, "一般的な範囲");
-    assert.equal(dissociationBand(11.9).label, "一般的な範囲");
-    assert.equal(dissociationBand(12).label, "やや多め");
-    assert.equal(dissociationBand(29.9).label, "多め");
-    assert.equal(dissociationBand(30).label, "かなり多い");
-    assert.equal(dissociationBand(45).label, "非常に多い");
+  it("回答の頻度として説明し、原典の臨床区分は使わない", () => {
+    assert.equal(dissociationFrequency(0).label, "ほとんどないと回答");
+    assert.equal(dissociationFrequency(9.9).label, "たまにすると回答");
+    assert.equal(dissociationFrequency(10).label, "ある程度すると回答");
+    assert.equal(dissociationFrequency(25).label, "多めにすると回答");
+    assert.ok(!dissociationFrequency(45).text.includes("二重人格である確率"));
   });
 });
 
@@ -101,10 +94,11 @@ describe("回答の検証", () => {
 });
 
 describe("このサイトの平均", () => {
-  const entry = (age: StatEntry["age"], total: number): StatEntry => ({
+  const entry = (age: StatEntry["age"], total: number, wording = WORDING_VERSION): StatEntry => ({
     age,
     scores: { total, amnesia: 0, depersonalization: 0, absorption: 0 },
     at: "2026-10-06T00:00:00.000Z",
+    wording,
   });
 
   it(`${MIN_GROUP_SIZE}人未満の年代は平均を出さない`, () => {
@@ -121,5 +115,15 @@ describe("このサイトの平均", () => {
     assert.equal(stats.all.n, MIN_GROUP_SIZE + 2);
     assert.ok(stats.all.means.total !== undefined);
     assert.equal(stats.byAge.none, undefined);
+  });
+
+  it("言い換え前の集計は混ぜない", () => {
+    const entries = [
+      ...Array.from({ length: MIN_GROUP_SIZE }, () => entry("20s", 10, WORDING_VERSION)),
+      ...Array.from({ length: MIN_GROUP_SIZE }, () => entry("20s", 90, 1)),
+    ];
+    const stats = aggregate("dissociation", entries);
+    assert.equal(stats.all.n, MIN_GROUP_SIZE);
+    assert.equal(stats.all.means.total, 10);
   });
 });

@@ -1,19 +1,47 @@
-import { ALL_ITEMS, BASE_ITEMS, isAnswerValue, isMode, type Mode } from "@/lib/mbti/items";
+import {
+  ALL_ITEMS,
+  BASE_ITEMS,
+  FOLLOWUP,
+  FOLLOWUP_GAP,
+  isAnswerValue,
+  isFollowupChoice,
+  isMode,
+  type FollowupChoice,
+  type Mode,
+} from "@/lib/mbti/items";
 import type { Answers } from "@/lib/mbti/scoring";
 
 export const MBTI_STORAGE_KEY = "nigxam.mbti.v1";
 export const MBTI_FEEDBACK_KEY = "nigxam.mbti.feedback.v1";
 
+export type Followups = Record<string, { value: FollowupChoice | "skip"; version: number }>;
+
 export type MbtiProgress = {
   /** 選んだ段階。まだ選んでいなければ null。 */
   mode: Mode | null;
   answers: Answers;
+  /** 「状況による」の補足。基本得点とは別に保存する。 */
+  followups: Followups;
+  /** 質問ごとの回答にかかった時間（ミリ秒）。所要時間の実測に使う。 */
+  timings: Record<string, number>;
+  /** 同じ質問を何回変えたか。 */
+  changes: Record<string, number>;
+  /** 直近で補足質問を出してから答えた基本質問の数。連続を防ぐ。 */
+  followupGap: number;
   /** 「いまの状態」の質問を、答えたか飛ばしたかして終えたか。 */
   stateDone: boolean;
 };
 
 export function emptyMbti(): MbtiProgress {
-  return { mode: null, answers: {}, stateDone: false };
+  return {
+    mode: null,
+    answers: {},
+    followups: {},
+    timings: {},
+    changes: {},
+    followupGap: FOLLOWUP_GAP,
+    stateDone: false,
+  };
 }
 
 export function sanitizeMbti(input: unknown): MbtiProgress {
@@ -28,9 +56,42 @@ export function sanitizeMbti(input: unknown): MbtiProgress {
       if (isAnswerValue(value) && version === item.version) answers[item.id] = { value, version };
     }
   }
+  const followups: Followups = {};
+  if (raw.followups && typeof raw.followups === "object") {
+    for (const [id, entry] of Object.entries(raw.followups as Record<string, unknown>)) {
+      if (!answers[id] || answers[id].value !== "depends") continue;
+      if (!entry || typeof entry !== "object") continue;
+      const { value, version } = entry as { value?: unknown; version?: unknown };
+      if (isFollowupChoice(value) && version === FOLLOWUP.version) followups[id] = { value, version };
+    }
+  }
+  const timings: Record<string, number> = {};
+  if (raw.timings && typeof raw.timings === "object") {
+    for (const [id, ms] of Object.entries(raw.timings as Record<string, unknown>)) {
+      if (typeof ms === "number" && Number.isFinite(ms) && ms >= 0 && ms < 30 * 60 * 1000) timings[id] = ms;
+    }
+  }
+  const changes: Record<string, number> = {};
+  if (raw.changes && typeof raw.changes === "object") {
+    for (const [id, count] of Object.entries(raw.changes as Record<string, unknown>)) {
+      if (typeof count === "number" && Number.isInteger(count) && count >= 0 && count < 1000) changes[id] = count;
+    }
+  }
+  const followupGap =
+    typeof raw.followupGap === "number" && Number.isInteger(raw.followupGap) && raw.followupGap >= 0
+      ? raw.followupGap
+      : FOLLOWUP_GAP;
   // mode を持たない保存データの回答は、すべて「詳細」の質問に含まれる。
   const legacy = BASE_ITEMS.some((item) => answers[item.id]) ? "detailed" : null;
-  return { mode: isMode(raw.mode) ? raw.mode : legacy, answers, stateDone: raw.stateDone === true };
+  return {
+    mode: isMode(raw.mode) ? raw.mode : legacy,
+    answers,
+    followups,
+    timings,
+    changes,
+    followupGap,
+    stateDone: raw.stateDone === true,
+  };
 }
 
 export function loadMbti(): MbtiProgress {

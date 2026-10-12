@@ -636,7 +636,14 @@ export const DOMAINS: {
 
 export type FacetDef = { key: string; title: string; low: string; high: string };
 
-/** 軸の中の側面。完全版で、各側面の質問が十分にあるときだけ分析する。 */
+/** 断る・頼る・本音を伝えるの内訳。完全版で各2問あるときだけ分析する。 */
+export const ASSERT_FACETS: FacetDef[] = [
+  { key: "refuse", title: "断り方", low: "断りにくい", high: "断りやすい" },
+  { key: "rely", title: "頼り方", low: "一人で抱えやすい", high: "人に頼みやすい" },
+  { key: "honest", title: "本音の伝え方", low: "不満を言わずにがまんしやすい", high: "してほしいことを言葉にしやすい" },
+];
+
+/** 軸の中の側面。60問以上で、各側面の質問が十分にあるときだけ分析する。 */
 export const FACETS: Record<AxisKey, FacetDef[]> = {
   EI: [
     { key: "recharge", title: "気力の回復", low: "人と過ごして回復する", high: "一人で過ごして回復する" },

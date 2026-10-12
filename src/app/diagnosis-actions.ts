@@ -5,6 +5,7 @@ import {
   isCompleteAnswers,
   scoreTest,
   TEST_IDS,
+  WORDING_VERSION,
   type TestId,
   type TestStats,
 } from "@/lib/diagnosis";
@@ -39,6 +40,7 @@ export async function submitDiagnosis(input: {
       age,
       scores: scoreTest(testId, answers),
       at: new Date().toISOString(),
+      wording: WORDING_VERSION,
     });
     return { ok: true, stats: await loadStats(testId) };
   } catch (error) {

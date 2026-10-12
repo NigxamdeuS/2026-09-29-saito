@@ -191,11 +191,12 @@ export const TESTS: Record<TestId, TestDef> = {
   confidence: {
     id: "confidence",
     title: "自信度診断",
-    lead: "自分全体への自信（自尊感情）と、仕事・人間関係・見た目・お金など8つの分野ごとの自信を測ります。",
+    lead: "自分全体への評価（自尊感情）と、仕事・人間関係・見た目・お金など8つの分野ごとの自信を分けて見ます。自己効力感の尺度は使っていません。",
     instructions: [
       "ふだんの自分に、いちばん近いものを選んでください。",
       "深く考え込まず、最初に浮かんだ答えで構いません。",
-      "前半の10問は、研究で広く使われている「ローゼンバーグ自尊感情尺度」の内容を、意味を変えずに分かりやすい言葉に言い換えたものです。",
+      "前半の10問は、ローゼンバーグ自尊感情尺度を参考に、このサイトが独自に言い換えた版です。原文のままではないため、元の尺度の平均値や検証結果はそのまま使いません。",
+      "測っているのは、自分全体への評価（自尊感情）と、8つの分野ごとの自信です。課題をやり遂げる自信の一般的な尺度である自己効力感は、この診断では測っていません。",
     ],
     options: AGREE,
     items: [
@@ -222,7 +223,7 @@ export const TESTS: Record<TestId, TestDef> = {
     instructions: [
       "それぞれの体験が、ふだんの生活の中でどのくらいの割合であるかを、0%（まったくない）から100%（いつも）の間で選んでください。",
       "お酒や薬の影響を受けているときの体験は含めないでください。",
-      "質問は「解離体験尺度 第2版（DES-II, Carlson & Putnam, 1993）」の内容を、意味を変えずに分かりやすい日本語に言い換えたものです。",
+      "質問の数・答え方・採点のしかたは、解離体験尺度 第2版（DES-II, Carlson & Putnam, 1993）に合わせています。文言はこのサイトの言い換えです。日本語版の利用条件は確認中のため、元の尺度の平均値や区分はそのまま使いません。",
       "答えていてつらくなったら、途中でやめて構いません。",
     ],
     options: PERCENT,
@@ -281,103 +282,52 @@ export function formatScore(def: ScoreDef, value: number) {
   return value.toFixed(def.digits);
 }
 
-/** 小塩ほか（2014）の5件法換算の推定値（項目平均）を、4件法の合計点（10〜40点）に戻す。 */
-export function rsesFromFivePoint(itemMean: number) {
-  return ((itemMean - 3) * 3) / 4 + 2.5;
-}
+/** このサイトの言い換え版の版。文言を変えたら上げ、サイト平均の集計も別に始める。 */
+export const WORDING_VERSION = 2;
 
-export type Reference = { label: string; value: number; note?: string; ages: AgeGroup[] };
+export type FrequencyNote = { label: string; text: string };
 
-export const SELF_ESTEEM_REFERENCES: Reference[] = [
-  { label: "中高生（12〜18歳）", value: rsesFromFivePoint(2.88) * 10, ages: ["10s"] },
-  { label: "大学生・専門学校生など", value: rsesFromFivePoint(3.08) * 10, ages: ["10s", "20s"] },
-  {
-    label: "社会人（18〜60歳、学生を除く）",
-    value: rsesFromFivePoint(3.28) * 10,
-    ages: ["20s", "30s", "40s", "50s"],
-  },
-  { label: "高齢者（60歳以上）", value: rsesFromFivePoint(3.37) * 10, ages: ["60s"] },
-];
-
-export const SELF_ESTEEM_SOURCE =
-  "小塩真司ほか（2014）「自尊感情平均値に及ぼす年齢と調査年の影響」教育心理学研究 62巻。1980〜2013年の日本の256研究・48,927人のメタ分析による推定値を、このサイトの4段階・40点満点に換算した目安です。";
-
-export const DISSOCIATION_REFERENCES: Reference[] = [
-  {
-    label: "日本の一般成人 1,029人（平均44.6歳）",
-    value: 9.04,
-    note: "半数は2.9以下、上位25%は10.0以上",
-    ages: ["20s", "30s", "40s", "50s", "60s"],
-  },
-  { label: "海外の一般の人 5,916人（メタ分析）", value: 11.57, ages: [] },
-  { label: "解離性障害と診断された人 3,073人（メタ分析）", value: 41.22, ages: [] },
-];
-
-export const DISSOCIATION_SOURCE =
-  "日本の成人：Ikeda（2025）BMC Psychiatry 25巻。海外：van IJzendoorn & Schuengel（1996）Psychological Methods 1巻。若い人ほど点数が高めに出る傾向が報告されています。";
-
-export type Band = { min: number; label: string; text: string };
-
-export const DISSOCIATION_BANDS: Band[] = [
-  {
-    min: 0,
-    label: "一般的な範囲",
-    text: "一般の人によく見られる程度です。ぼんやりする、のめり込むといった体験は、多くの人にあります。",
-  },
-  {
-    min: 12,
-    label: "やや多め",
-    text: "一般の平均より多めですが、多くの場合は普通の範囲に収まります。",
-  },
-  {
-    min: 20,
-    label: "多め",
-    text: "解離の体験がはっきりある程度です。日常生活で困っていることがあれば、専門家に相談すると整理しやすくなります。",
-  },
-  {
-    min: 30,
-    label: "かなり多い",
-    text: "解離性の障害がある人に見られる程度の体験があります。病気かどうかはこの点数だけでは決まらないため、精神科や心療内科で相談することをおすすめします。",
-  },
-  {
-    min: 45,
-    label: "非常に多い",
-    text: "解離性同一症などで見られることが多い水準です。病気かどうかはこの点数だけでは決まりませんが、精神科や心療内科で詳しく話を聞いてもらうことを強くおすすめします。",
-  },
-];
-
-export function dissociationBand(total: number): Band {
-  return [...DISSOCIATION_BANDS].reverse().find((band) => total >= band.min)!;
-}
-
-export const BAND_SOURCE =
-  "区分は、原著者が専門的な評価をすすめる30点（Carlson & Putnam, 1993）と、その下の段階を加えた NovoPsych の目安（Leeds ほか 2022、Schimmenti ほか 2016 に基づく）によります。";
-
-export type SelfEsteemLevel = { label: string; text: string };
-
-export function selfEsteemLevel(score: number): SelfEsteemLevel {
-  const adult = SELF_ESTEEM_REFERENCES[2].value;
-  if (score >= adult + 5) {
-    return { label: "高め", text: "自分を肯定的に受け止められている状態です。" };
-  }
-  if (score >= adult - 3) {
-    return { label: "平均的", text: "日本の平均に近い、ごく一般的な水準です。" };
-  }
-  if (score >= adult - 8) {
+/** 自分の回答がどのくらい「ある」側だったかの説明。研究の区分や人口内の位置ではない。 */
+export function dissociationFrequency(total: number): FrequencyNote {
+  if (total === 0) {
     return {
-      label: "やや低め",
-      text: "自分に厳しく評価しがちな状態です。日本では、特に若い世代で低めに出やすいことが知られています。",
+      label: "ほとんどないと回答",
+      text: "今回の28問では、該当する体験はほとんどないと答えています。これは病気かどうかの判定ではありません。",
+    };
+  }
+  if (total < 10) {
+    return {
+      label: "たまにすると回答",
+      text: "いくつかの体験について、たまに起こると答えています。点数は「どのくらいの割合であると感じたか」の平均です。研究で使われた原文の平均値や区分は、言い換えているため使いません。",
+    };
+  }
+  if (total < 25) {
+    return {
+      label: "ある程度すると回答",
+      text: "複数の体験について、ある程度の割合であると答えています。困っていることがあれば、点数の高低にかかわらず相談できます。病気の診断や「二重人格である確率」は出していません。",
     };
   }
   return {
-    label: "低め",
-    text: "自分をかなり厳しく評価している状態です。落ち込みが続いてつらいときは、身近な人や専門家に相談してください。",
+    label: "多めにすると回答",
+    text: "多くの体験について、かなりの割合であると答えています。これはこのサイトの言い換え版での回答の要約であり、診断ではありません。日常生活で困っているときは、精神科や心療内科に相談できます。",
+  };
+}
+
+export function selfEsteemNote(score: number): FrequencyNote {
+  return {
+    label: "自尊感情（言い換え版の合計）",
+    text:
+      score >= 28
+        ? "自分全体を肯定的に見る回答が、否定的に見る回答より多めでした。これはこのサイトの言い換え10問の合計で、研究上の平均や人口の中での位置ではありません。"
+        : score >= 22
+          ? "肯定的な見方と、厳しく見る回答が混ざっています。分野ごとの自信とは別の項目です。自己効力感の尺度は使っていません。"
+          : "自分全体を厳しく見る回答が多めでした。落ち込みが続いてつらいときは、身近な人や専門家に相談してください。研究の平均値との比較はしていません。",
   };
 }
 
 export const MIN_GROUP_SIZE = 5;
 
-export type StatEntry = { age: AgeGroup; scores: Scores; at: string };
+export type StatEntry = { age: AgeGroup; scores: Scores; at: string; wording?: number };
 
 export type GroupStats = { n: number; means: Scores };
 
@@ -385,6 +335,7 @@ export type TestStats = { all: GroupStats; byAge: Partial<Record<AgeGroup, Group
 
 export function aggregate(testId: TestId, entries: StatEntry[]): TestStats {
   const keys = TESTS[testId].scores.map((score) => score.key);
+  const current = entries.filter((entry) => (entry.wording ?? 1) === WORDING_VERSION);
   function summarize(list: StatEntry[]): GroupStats {
     const means: Scores = {};
     if (list.length >= MIN_GROUP_SIZE) {
@@ -395,8 +346,8 @@ export function aggregate(testId: TestId, entries: StatEntry[]): TestStats {
   const byAge: TestStats["byAge"] = {};
   for (const group of AGE_GROUPS) {
     if (group.id === "none") continue;
-    const list = entries.filter((entry) => entry.age === group.id);
+    const list = current.filter((entry) => entry.age === group.id);
     if (list.length > 0) byAge[group.id] = summarize(list);
   }
-  return { all: summarize(entries), byAge };
+  return { all: summarize(current), byAge };
 }

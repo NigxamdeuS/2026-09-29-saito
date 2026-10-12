@@ -4,21 +4,24 @@ import { AXES, BIPOLARS, COMBOS, FACETS, PAIRS, TRAITS } from "@/lib/mbti/conten
 import {
   BASE_ITEMS,
   baseItemsOf,
+  FOLLOWUP,
   itemsOf,
-  MODES,
+  STAGES,
   STATE_ITEMS,
   type AnswerValue,
   type Item,
+  type Mode,
 } from "@/lib/mbti/items";
 import { buildReport } from "@/lib/mbti/report";
-import { scoreAll, scoreItems, sceneGaps, typeOf, type Answers } from "@/lib/mbti/scoring";
+import { scoreAll, scoreItems, sceneGaps, sceneScores, typeOf, type Answers } from "@/lib/mbti/scoring";
 import { compareProfiles, decodeProfile, encodeProfile, scoresOf } from "@/lib/mbti/share";
 import { sanitizeMbti } from "@/lib/mbti/storage";
+import { completedStage, cronbachAlpha, scoredMatrix } from "@/lib/mbti/validation";
 
 /** 高い側（軸では右の文字）に寄せた回答なら toward=1、低い側なら 0。 */
 function lean(items: Item[], toward: 0 | 1, answers: Answers = {}) {
   for (const item of items) {
-    const agree = (item.direction === 1) === (toward === 1);
+    const agree = item.direction === 1 === (toward === 1);
     answers[item.id] = { value: agree ? 5 : 1, version: item.version };
   }
   return answers;
@@ -28,43 +31,66 @@ function all(value: AnswerValue): Answers {
   return Object.fromEntries(BASE_ITEMS.map((item) => [item.id, { value, version: item.version }]));
 }
 
+function fillMode(mode: Mode, toward: 0 | 1 = 1): Answers {
+  return lean(baseItemsOf(mode), toward);
+}
+
 describe("質問の構成", () => {
-  it("段階ごとの問題数は30・60・90・162で、短い段階の質問は長い段階にすべて含まれる", () => {
+  it("段階ごとの問題数は30・60・90・150で、短い段階の質問は長い段階にすべて含まれる", () => {
     assert.deepEqual(
-      MODES.map((mode) => baseItemsOf(mode.key).length),
-      [30, 60, 90, 162],
+      STAGES.map((stage) => baseItemsOf(stage.key).length),
+      [30, 60, 90, 150],
     );
-    for (const [i, mode] of MODES.entries()) {
+    assert.equal(BASE_ITEMS.length, 150);
+    for (const [i, stage] of STAGES.entries()) {
       if (i === 0) continue;
-      const longer = new Set(baseItemsOf(mode.key));
-      assert.ok(baseItemsOf(MODES[i - 1].key).every((item) => longer.has(item)), mode.key);
+      const longer = new Set(baseItemsOf(stage.key));
+      assert.ok(
+        baseItemsOf(STAGES[i - 1].key).every((item) => longer.has(item)),
+        stage.key,
+      );
     }
   });
 
   it("どの段階でも、各軸は両方向の質問が同じ数で、複数の場面から聞く", () => {
-    for (const mode of MODES) {
+    for (const stage of STAGES) {
       for (const axis of AXES) {
-        const items = itemsOf(axis.key, mode.key);
-        assert.equal(items.filter((item) => item.direction === 1).length * 2, items.length, `${mode.key} ${axis.key}`);
-        assert.ok(new Set(items.map((item) => item.scene)).size >= 3, `${mode.key} ${axis.key}`);
+        const items = itemsOf(axis.key, stage.key);
+        assert.equal(items.filter((item) => item.direction === 1).length * 2, items.length, `${stage.key} ${axis.key}`);
+        assert.ok(new Set(items.map((item) => item.scene)).size >= 3, `${stage.key} ${axis.key}`);
       }
     }
   });
 
-  it("完全版では、各軸の3つの側面にそれぞれ両方向4問ずつある", () => {
+  it("60問では各側面4問、150問では各側面6問以上あり、両方向を含む", () => {
     for (const axis of AXES) {
       for (const facet of FACETS[axis.key]) {
-        const items = itemsOf(axis.key).filter((item) => item.facet === facet.key);
-        assert.equal(items.length, 8, `${axis.key} ${facet.key}`);
-        assert.equal(items.filter((item) => item.direction === 1).length, 4, `${axis.key} ${facet.key}`);
+        const at60 = itemsOf(axis.key, "standard").filter((item) => item.facet === facet.key);
+        assert.equal(at60.length, 4, `${axis.key} ${facet.key} standard`);
+        const all = itemsOf(axis.key).filter((item) => item.facet === facet.key);
+        assert.ok(all.length >= 6, `${axis.key} ${facet.key} complete ${all.length}`);
+        assert.ok(all.some((item) => item.direction === 1));
+        assert.ok(all.some((item) => item.direction === -1));
       }
-      assert.ok(itemsOf(axis.key).every((item) => FACETS[axis.key].some((facet) => facet.key === item.facet)));
     }
   });
 
-  it("スタンダード以上では関わり方の9項目をすべて測る", () => {
-    for (const trait of TRAITS) assert.ok(itemsOf(trait.key, "standard").length >= 3, trait.key);
+  it("30問では会話の深さを測らず、60問では会話と約束を測る", () => {
     assert.equal(itemsOf("conversation", "quick").length, 0);
+    assert.equal(itemsOf("plans", "quick").length, 0);
+    assert.equal(itemsOf("conversation", "standard").length, 3);
+    assert.equal(itemsOf("plans", "standard").length, 3);
+    assert.equal(itemsOf("alone", "standard").length, 0);
+    assert.equal(itemsOf("stability", "standard").length, 0);
+  });
+
+  it("90問で価値観と距離感を測り、150問で各関わり方は6問になる", () => {
+    for (const key of ["alone", "contact", "affection", "support", "conflict"] as const) {
+      assert.equal(itemsOf(key, "detailed").length, 3, key);
+      assert.equal(itemsOf(key).length, 6, key);
+    }
+    assert.equal(itemsOf("stability", "detailed").length, 3);
+    assert.equal(itemsOf("stability").length, 4);
   });
 
   it("対人傾向の各項目は逆転項目を含み、恋愛の場面だけに頼らない", () => {
@@ -75,11 +101,24 @@ describe("質問の構成", () => {
     }
   });
 
+  it("150問では職場・友人・恋愛の場面が軸ごとに3問以上ある", () => {
+    for (const axis of AXES) {
+      for (const scene of ["work", "friends", "close"] as const) {
+        const n = itemsOf(axis.key).filter((item) => item.scene === scene).length;
+        assert.ok(n >= 3, `${axis.key} ${scene} ${n}`);
+      }
+    }
+  });
+
   it("IDは重複せず、いまの状態の質問は基本診断と別", () => {
     const ids = [...BASE_ITEMS, ...STATE_ITEMS].map((item) => item.id);
     assert.equal(new Set(ids).size, ids.length);
     assert.equal(STATE_ITEMS.length, 4);
     assert.ok(STATE_ITEMS.every((item) => !BASE_ITEMS.includes(item)));
+  });
+
+  it("各質問に測定項目・理由・種類がある", () => {
+    assert.ok(BASE_ITEMS.every((item) => item.purpose && item.kind && item.measure));
   });
 });
 
@@ -91,14 +130,16 @@ describe("採点", () => {
     assert.equal(scoreAll(all(5)).EI.score, 50);
   });
 
-  it("「判断できない」は中間と区別して採点から外す", () => {
+  it("「判断できない」も「状況による」も中間にせず採点から外す", () => {
     const ei = itemsOf("EI");
     const answers = lean(ei, 1);
-    answers[ei[0].id] = { value: "na", version: 1 };
+    answers[ei[0].id] = { value: "na", version: ei[0].version };
+    answers[ei[1].id] = { value: "depends", version: ei[1].version };
     const result = scoreItems(ei, answers);
     assert.equal(result.score, 100);
     assert.equal(result.na, 1);
-    assert.equal(result.answered, ei.length - 1);
+    assert.equal(result.depends, 1);
+    assert.equal(result.answered, ei.length - 2);
   });
 
   it("回答が6割に満たない項目は保留にする", () => {
@@ -117,14 +158,46 @@ describe("採点", () => {
     assert.equal(scoreAll(answers, "quick").EI.total, 6);
     const report = buildReport(answers, "quick");
     assert.equal(report.results.conversation.total, 0);
-    assert.ok(report.unmeasured.includes(TRAITS[0].title));
-    assert.ok(!report.held.includes(TRAITS[0].title));
+    assert.ok(report.unmeasured.includes(TRAITS.find((def) => def.key === "conversation")!.title));
+    assert.ok(!report.held.includes(TRAITS.find((def) => def.key === "conversation")!.title));
     assert.deepEqual(report.facets, []);
+    assert.deepEqual(report.domains, []);
   });
 
   it("版が変わった質問の古い回答は使わない", () => {
     const item = itemsOf("conversation")[0];
     assert.equal(scoreItems([item], { [item.id]: { value: 5, version: item.version + 1 } }).score, null);
+  });
+});
+
+describe("段階の一致", () => {
+  it("同じ回答なら、最初から150問でも段階的に進んでも結果は同じ", () => {
+    const answers = fillMode("complete", 1);
+    const direct = buildReport(answers, "complete");
+    const staged = buildReport(answers, "complete");
+    assert.deepEqual(direct.results, staged.results);
+    assert.equal(direct.type.type, staged.type.type);
+    assert.deepEqual(
+      direct.axes.map((row) => row.score),
+      staged.axes.map((row) => row.score),
+    );
+  });
+
+  it("30問の回答を60・90・150に引き継いでも消えない", () => {
+    const quick = fillMode("quick", 1);
+    const standard = { ...quick, ...lean(baseItemsOf("standard").filter((item) => item.tier === 2), 0) };
+    assert.equal(Object.keys(standard).filter((id) => quick[id]).length, 30);
+    assert.equal(scoreAll(standard, "quick").EI.score, scoreAll(quick, "quick").EI.score);
+    const complete = {
+      ...standard,
+      ...lean(
+        baseItemsOf("complete").filter((item) => item.tier >= 3),
+        1,
+      ),
+    };
+    assert.equal(scoreAll(complete, "quick").EI.answered, 6);
+    assert.equal(completedStage(complete), "complete");
+    assert.equal(completedStage(quick), "quick");
   });
 });
 
@@ -146,8 +219,8 @@ describe("タイプと境界", () => {
     lean(itemsOf("SN"), 1, answers);
     lean(itemsOf("TF"), 0, answers);
     const jp = itemsOf("JP");
-    lean(jp.slice(0, 13), 1, answers);
-    lean(jp.slice(13), 0, answers);
+    lean(jp.slice(0, 10), 1, answers);
+    lean(jp.slice(10), 0, answers);
     const results = scoreAll(answers);
     assert.ok(results.JP.score! >= 40 && results.JP.score! <= 60);
     const type = typeOf(results);
@@ -172,12 +245,26 @@ describe("場面による違い", () => {
   it("職場と友人で向きが大きく違えば、場面の違いとして取り出す", () => {
     const ei = itemsOf("EI");
     const answers: Answers = {};
-    lean(ei.filter((item) => item.scene === "work"), 1, answers);
-    lean(ei.filter((item) => item.scene === "friends"), 0, answers);
+    lean(
+      ei.filter((item) => item.scene === "work"),
+      1,
+      answers,
+    );
+    lean(
+      ei.filter((item) => item.scene === "friends"),
+      0,
+      answers,
+    );
     const gaps = sceneGaps(["EI"], answers);
     assert.equal(gaps.length, 1);
     assert.equal(gaps[0].high, "work");
     assert.equal(gaps[0].low, "friends");
+  });
+
+  it("軸の場面スコアは3問未満なら出さない", () => {
+    const ei = itemsOf("EI").filter((item) => item.scene === "work").slice(0, 2);
+    const answers = lean(ei, 1);
+    assert.equal(sceneScores("EI", answers).work, undefined);
   });
 });
 
@@ -220,8 +307,8 @@ describe("結果の文章", () => {
     assert.equal(titles[0][0], PAIRS[0].styles.NT.title);
 
     const jp = itemsOf("JP");
-    lean(jp.slice(0, 13), 1, answers);
-    lean(jp.slice(13), 0, answers);
+    lean(jp.slice(0, 10), 1, answers);
+    lean(jp.slice(10), 0, answers);
     const mixed = buildReport(answers).pairs.find((pair) => pair.title === PAIRS[1].title)!;
     assert.equal(mixed.styles.length, 2);
     assert.equal(buildReport({}).pairs.length, 0);
@@ -232,6 +319,13 @@ describe("結果の文章", () => {
     assert.equal(row.evidence.length, 3);
     assert.ok(row.evidence.every((item) => item.toward === "I"));
     assert.equal(row.degree, "とてもはっきり");
+  });
+
+  it("追加回答で結果が変わったときは、何が加わったかを説明する", () => {
+    const answers = fillMode("standard", 1);
+    const report = buildReport(answers, "standard");
+    assert.ok(report.changes.length > 0);
+    assert.ok(report.changes[0].text.includes("30問から60問"));
   });
 });
 
@@ -251,20 +345,44 @@ describe("回答の状況", () => {
     assert.equal(neutral.neutral, BASE_ITEMS.length);
     assert.ok(neutral.notes.some((note) => note.text.includes("どちらともいえない")));
     assert.ok(buildReport(all("na")).quality.notes.some((note) => note.text.includes("判断できない")));
+    assert.ok(buildReport(all("depends")).quality.notes.some((note) => note.text.includes("状況による")));
+    assert.equal(buildReport(all("depends")).quality.depends, BASE_ITEMS.length);
   });
 });
 
 describe("側面の分析", () => {
-  it("完全版でのみ、側面ごとの向きの違いを取り出す", () => {
+  it("60問以上で、側面ごとの向きの違いを取り出す", () => {
     const answers: Answers = {};
-    const ei = itemsOf("EI");
-    lean(ei.filter((item) => item.facet === "recharge"), 1, answers);
-    lean(ei.filter((item) => item.facet !== "recharge"), 0, answers);
-    const facet = buildReport(answers).facets.find((item) => item.axis.key === "EI")!;
+    const ei = itemsOf("EI", "standard");
+    lean(
+      ei.filter((item) => item.facet === "recharge"),
+      1,
+      answers,
+    );
+    lean(
+      ei.filter((item) => item.facet !== "recharge"),
+      0,
+      answers,
+    );
+    const facet = buildReport(answers, "standard").facets.find((item) => item.axis.key === "EI")!;
     assert.equal(facet.rows.find((row) => row.def.key === "recharge")!.side, "high");
     assert.equal(facet.rows.find((row) => row.def.key === "process")!.side, "low");
     assert.ok(facet.note.text.includes("側面によって向きが分かれています"));
-    assert.deepEqual(buildReport(answers, "detailed").facets, []);
+    assert.deepEqual(buildReport(answers, "quick").facets, []);
+  });
+});
+
+describe("補足回答", () => {
+  it("補足は基本得点を変えず、場面差の説明に使う", () => {
+    const answers = fillMode("complete", 1);
+    const first = baseItemsOf("complete")[0];
+    answers[first.id] = { value: "depends", version: first.version };
+    const without = buildReport(answers, "complete");
+    const withFollow = buildReport(answers, "complete", {
+      [first.id]: { value: "close", version: FOLLOWUP.version },
+    });
+    assert.equal(without.results[first.measure].score, withFollow.results[first.measure].score);
+    assert.ok(withFollow.followupNotes.some((note) => note.text.includes("親しい人が相手")));
   });
 });
 
@@ -307,14 +425,29 @@ describe("保存データ", () => {
         "EI-02": { value: 7, version: 1 },
         "EI-03": { value: "na", version: 1 },
         "EI-04": { value: 3, version: 0 },
+        "EI-10": { value: "depends", version: 1 },
         "XX-99": { value: 3, version: 1 },
+      },
+      followups: {
+        "EI-10": { value: "work", version: 1 },
+        "EI-01": { value: "work", version: 1 },
       },
       stateDone: true,
     });
-    assert.deepEqual(Object.keys(progress.answers).sort(), ["EI-01", "EI-03"]);
+    assert.deepEqual(Object.keys(progress.answers).sort(), ["EI-01", "EI-03", "EI-10"]);
+    assert.deepEqual(Object.keys(progress.followups), ["EI-10"]);
     assert.equal(progress.stateDone, true);
     assert.equal(progress.mode, "detailed");
     assert.equal(sanitizeMbti({ mode: "quick", answers: {} }).mode, "quick");
     assert.equal(sanitizeMbti({ mode: "zzz", answers: {} }).mode, null);
+  });
+});
+
+describe("検証用の集計", () => {
+  it("完答が揃えば Cronbach's α を返す", () => {
+    const items = itemsOf("EI", "quick");
+    const respondents = [lean(items, 1), lean(items, 0), lean(items, 1), lean(items, 0)];
+    const alpha = cronbachAlpha(scoredMatrix(items, respondents));
+    assert.ok(alpha !== null && alpha > 0.9);
   });
 });

@@ -7,19 +7,13 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import {
   AGE_GROUPS,
   ageLabel,
-  BAND_SOURCE,
-  DISSOCIATION_REFERENCES,
-  DISSOCIATION_SOURCE,
-  dissociationBand,
+  dissociationFrequency,
   formatScore,
   MIN_GROUP_SIZE,
   scoreTest,
-  SELF_ESTEEM_REFERENCES,
-  SELF_ESTEEM_SOURCE,
-  selfEsteemLevel,
+  selfEsteemNote,
   TESTS,
   type AgeGroup,
-  type Reference,
   type ScoreDef,
   type Scores,
   type TestId,
@@ -171,7 +165,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
 
         <fieldset className="mt-10">
           <legend className="font-mincho text-xl">年代を選んでください</legend>
-          <p className="mt-1 text-xs leading-6 text-[#8ea3bd]">同じ年代の平均と比べるために使います。</p>
+          <p className="mt-1 text-xs leading-6 text-[#8ea3bd]">このサイトで同じ言い換え版に答えた人の平均と比べるために使います。研究の平均値とは比べません。</p>
           <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
             {AGE_GROUPS.map((group) => (
               <button
@@ -443,15 +437,6 @@ function siteRows(def: ScoreDef, age: AgeGroup | null, stats: StatsState): Compa
   return rows;
 }
 
-function referenceRows(references: Reference[], age: AgeGroup | null): CompareItem[] {
-  return references.map((reference) => ({
-    label: reference.label,
-    value: reference.value,
-    detail: reference.note,
-    highlight: age !== null && reference.ages.includes(age),
-  }));
-}
-
 function StatsNote({ stats }: { stats: StatsState }) {
   if (stats.status === "loading") {
     return <p className="mt-3 text-xs text-[#8ea3bd]">このサイトの平均を読み込んでいます…</p>;
@@ -469,7 +454,7 @@ function StatsNote({ stats }: { stats: StatsState }) {
 function ConfidenceResult({ scores, age, stats }: ResultProps) {
   const test = TESTS.confidence;
   const selfEsteem = scores.selfEsteem;
-  const level = selfEsteemLevel(selfEsteem);
+  const note = selfEsteemNote(selfEsteem);
   const domainDefs = test.scores.slice(1);
   const ranked = [...domainDefs].sort((a, b) => scores[b.key] - scores[a.key]);
   const strongest = ranked.filter((def) => scores[def.key] === scores[ranked[0].key]);
@@ -482,33 +467,31 @@ function ConfidenceResult({ scores, age, stats }: ResultProps) {
   return (
     <>
       <div className="paper mt-4 rounded-3xl px-6 py-8 md:px-10">
-        <p className="text-xs text-[#8ea3bd]">自分全体への自信（自尊感情）</p>
+        <p className="text-xs text-[#8ea3bd]">自尊感情（自分全体への評価・このサイトの言い換え版）</p>
         <p className="mt-2 flex items-baseline gap-2">
           <span className="font-mincho text-6xl leading-none tabular-nums">{selfEsteem}</span>
           <span className="text-sm text-[#8ea3bd]">/ 40点</span>
-          <span className="ml-3 rounded-full bg-[#eef6ff] px-3 py-1 text-sm text-[#eef6ff]">{level.label}</span>
         </p>
-        <p className="mt-4 text-sm leading-7 text-[#c5d4e6]">{level.text}</p>
+        <p className="mt-4 text-sm leading-7 text-[#c5d4e6]">{note.text}</p>
+        <p className="mt-3 text-xs leading-6 text-[#8ea3bd]">
+          自己効力感（課題をやり遂げる自信の一般的な尺度）は測っていません。下の8分野は、このサイト独自の補足質問です。
+        </p>
       </div>
 
       <section className="mt-10">
-        <h2 className="font-mincho text-2xl">平均と比べる</h2>
-        <CompareChart
-          def={test.scores[0]}
-          you={selfEsteem}
-          rows={[...referenceRows(SELF_ESTEEM_REFERENCES, age), ...siteRows(test.scores[0], age, stats)]}
-        />
+        <h2 className="font-mincho text-2xl">このサイトの平均と比べる</h2>
+        <CompareChart def={test.scores[0]} you={selfEsteem} rows={siteRows(test.scores[0], age, stats)} />
         <p className="mt-3 text-xs leading-6 text-[#8ea3bd]">
-          研究の平均：{SELF_ESTEEM_SOURCE}20代は「大学生など」と「社会人」の間にあたります。
+          文言を変えているため、研究で報告された自尊感情の平均値とは比べていません。比較するのは、同じ言い換え版に答えたこのサイトの参加者だけです。
         </p>
         <StatsNote stats={stats} />
       </section>
 
       <section className="mt-12">
-        <h2 className="font-mincho text-2xl">分野ごとの自信</h2>
+        <h2 className="font-mincho text-2xl">分野ごとの自信（独自の補足）</h2>
         <p className="mt-3 text-sm leading-7 text-[#c5d4e6]">
           いちばん自信があるのは{strongest.map((def) => `「${def.label}」`).join("")}、
-          いちばん自信が低いのは{weakest.map((def) => `「${def.label}」`).join("")}です。
+          いちばん自信が低いのは{weakest.map((def) => `「${def.label}」`).join("")}です。自尊感情（自分全体への評価）とは別の項目です。
         </p>
         <ul className="mt-6 grid gap-5">
           {domainDefs.map((def) => (
@@ -538,24 +521,24 @@ function ConfidenceResult({ scores, age, stats }: ResultProps) {
 function DissociationResult({ scores, age, stats }: ResultProps) {
   const test = TESTS.dissociation;
   const total = scores.total;
-  const band = dissociationBand(total);
+  const frequency = dissociationFrequency(total);
   const group = stats.status === "ok" && age && age !== "none" ? stats.stats.byAge[age] : undefined;
   const subSiteMeans = group?.means ?? (stats.status === "ok" ? stats.stats.all.means : {});
 
   return (
     <>
       <div className="paper mt-4 rounded-3xl px-6 py-8 md:px-10">
-        <p className="text-xs text-[#8ea3bd]">解離体験の合計（28問の平均）</p>
+        <p className="text-xs text-[#8ea3bd]">解離体験の合計（28問の平均・このサイトの言い換え版）</p>
         <p className="mt-2 flex items-baseline gap-2">
           <span className="font-mincho text-6xl leading-none tabular-nums">
             {formatScore(test.scores[0], total)}
           </span>
           <span className="text-sm text-[#8ea3bd]">/ 100</span>
-          <span className="ml-3 rounded-full bg-[#eef6ff] px-3 py-1 text-sm text-[#eef6ff]">{band.label}</span>
+          <span className="ml-3 rounded-full border border-white/20 px-3 py-1 text-sm text-[#eef6ff]">{frequency.label}</span>
         </p>
-        <p className="mt-4 text-sm leading-7 text-[#c5d4e6]">{band.text}</p>
+        <p className="mt-4 text-sm leading-7 text-[#c5d4e6]">{frequency.text}</p>
         <p className="mt-4 text-xs leading-6 text-[#8ea3bd]">
-          これは診断ではありません。二重人格（解離性同一症）かどうかは、医師による面接でしか判断できません。
+          これは診断ではありません。二重人格である確率は出していません。性格・相性の採点にも使っていません。
         </p>
       </div>
 
@@ -573,15 +556,10 @@ function DissociationResult({ scores, age, stats }: ResultProps) {
       )}
 
       <section className="mt-10">
-        <h2 className="font-mincho text-2xl">平均と比べる</h2>
-        <CompareChart
-          def={test.scores[0]}
-          you={total}
-          rows={[...referenceRows(DISSOCIATION_REFERENCES, age), ...siteRows(test.scores[0], age, stats)]}
-        />
+        <h2 className="font-mincho text-2xl">このサイトの平均と比べる</h2>
+        <CompareChart def={test.scores[0]} you={total} rows={siteRows(test.scores[0], age, stats)} />
         <p className="mt-3 text-xs leading-6 text-[#8ea3bd]">
-          研究の平均：{DISSOCIATION_SOURCE}
-          研究で使われた日本語版とこのサイトの訳は文言が異なるため、比べる数値は目安です。
+          文言を変えているため、DES-II の原文や日本語版の平均値・区分はそのまま使っていません。比較するのは、同じ言い換え版に答えたこのサイトの参加者だけです。
         </p>
         <StatsNote stats={stats} />
       </section>
@@ -600,10 +578,9 @@ function DissociationResult({ scores, age, stats }: ResultProps) {
           ))}
         </ul>
         <p className="mt-4 text-xs leading-6 text-[#8ea3bd]">
-          各6問の平均です。「のめり込み」は多くの人にある体験で、「記憶の抜け」「現実感の薄れ」が高いほど解離性の障害との関係が強いとされています。
+          各6問の平均です。下位尺度の質問の割り当ては DES-II に合わせています。原文の臨床区分は使いません。
           {Object.keys(subSiteMeans).length > 0 && "白い線はこのサイトの平均です。"}
         </p>
-        <p className="mt-2 text-xs leading-6 text-[#8ea3bd]">{BAND_SOURCE}</p>
       </section>
     </>
   );
