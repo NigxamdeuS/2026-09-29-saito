@@ -52,7 +52,7 @@ export function JournalTransfer() {
   return (
     <section className="mt-12 rounded-2xl border border-white/10 px-4 py-5">
       <h2 className="text-sm">記録のバックアップと移行</h2>
-      <p className="mt-2 text-xs leading-6 text-[#b3a898]">
+      <p className="mt-2 text-xs leading-6 text-[#8ea3bd]">
         記録はこのブラウザの中にだけ保存されています。別の端末に移したいときや、控えを残しておきたいときに使ってください。
       </p>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -78,7 +78,7 @@ export function JournalTransfer() {
       {message && (
         <p
           role="status"
-          className={message.tone === "ok" ? "mt-3 text-xs text-[#b7cfc0]" : "mt-3 text-xs text-[#e7b5a4]"}
+          className={message.tone === "ok" ? "mt-3 text-xs text-[#6ee7b7]" : "mt-3 text-xs text-[#fca5a5]"}
         >
           {message.text}
         </p>

@@ -144,11 +144,11 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
   }, [choose, phase, test.options]);
 
   if (!progress) {
-    return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">読み込んでいます…</p>;
+    return <p className="px-5 py-24 text-center text-sm text-[#8ea3bd]">読み込んでいます…</p>;
   }
 
   const saveWarning = persistError && (
-    <p role="alert" className="mt-4 text-sm leading-6 text-[#e7b5a4]">
+    <p role="alert" className="mt-4 text-sm leading-6 text-[#fca5a5]">
       このブラウザに回答を保存できませんでした。タブを閉じると、回答は消えてしまいます。
     </p>
   );
@@ -157,13 +157,13 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
     const answered = answeredItems(progress);
     return (
       <div className="mx-auto w-full max-w-2xl px-5 py-10 md:py-16">
-        <p className="text-sm text-[#e25c2a]">{test.items.length}問 · 約{Math.ceil(test.items.length / 6)}分</p>
+        <p className="text-sm text-[#22d3ee]">{test.items.length}問 · 約{Math.ceil(test.items.length / 6)}分</p>
         <h1 className="font-mincho mt-3 text-4xl leading-tight md:text-5xl">{test.title}</h1>
-        <p className="mt-5 text-[15px] leading-8 text-[#ddd4c6]">{test.lead}</p>
-        <ul className="mt-6 space-y-2 text-sm leading-7 text-[#d9d0c3]">
+        <p className="mt-5 text-[15px] leading-8 text-[#cfdcec]">{test.lead}</p>
+        <ul className="mt-6 space-y-2 text-sm leading-7 text-[#c5d4e6]">
           {test.instructions.map((line) => (
             <li key={line} className="flex gap-2">
-              <span aria-hidden className="text-[#b3a898]">・</span>
+              <span aria-hidden className="text-[#8ea3bd]">・</span>
               <span>{line}</span>
             </li>
           ))}
@@ -171,7 +171,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
 
         <fieldset className="mt-10">
           <legend className="font-mincho text-xl">年代を選んでください</legend>
-          <p className="mt-1 text-xs leading-6 text-[#b3a898]">同じ年代の平均と比べるために使います。</p>
+          <p className="mt-1 text-xs leading-6 text-[#8ea3bd]">同じ年代の平均と比べるために使います。</p>
           <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
             {AGE_GROUPS.map((group) => (
               <button
@@ -182,7 +182,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
                 className={cn(
                   "h-12 rounded-xl border text-sm transition-colors",
                   progress.age === group.id
-                    ? "border-[#e25c2a] bg-[#e25c2a] text-[#1c100c]"
+                    ? "border-[#22d3ee] bg-[#22d3ee] text-[#031018]"
                     : "border-white/15 hover:border-white/40",
                 )}
               >
@@ -192,16 +192,16 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
           </div>
         </fieldset>
 
-        <label className="mt-6 flex cursor-pointer items-start gap-3 text-sm leading-6 text-[#d9d0c3]">
+        <label className="mt-6 flex cursor-pointer items-start gap-3 text-sm leading-6 text-[#c5d4e6]">
           <input
             type="checkbox"
             checked={progress.share}
             onChange={(event) => commit({ ...progress, share: event.target.checked })}
-            className="mt-1 size-4 accent-[#e25c2a]"
+            className="mt-1 size-4 accent-[#22d3ee]"
           />
           <span>
             結果を匿名の平均値づくりに加える
-            <span className="block text-xs text-[#b3a898]">
+            <span className="block text-xs text-[#8ea3bd]">
               送るのは年代と点数だけです。名前・メールアドレス・個々の回答は送りません。
             </span>
           </span>
@@ -232,7 +232,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
             </Button>
           )}
         </div>
-        {!progress.age && <p className="mt-3 text-xs text-[#b3a898]">年代を選ぶと始められます。</p>}
+        {!progress.age && <p className="mt-3 text-xs text-[#8ea3bd]">年代を選ぶと始められます。</p>}
         {saveWarning}
       </div>
     );
@@ -245,7 +245,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
     const isPercent = test.options.length > 9;
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-col px-5 py-6 md:py-12">
-        <div className="flex items-center justify-between text-xs text-[#b3a898]">
+        <div className="flex items-center justify-between text-xs text-[#8ea3bd]">
           <span>{item.section}</span>
           <span className="tabular-nums">
             {index + 1} / {test.items.length}
@@ -253,7 +253,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
         </div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10" aria-hidden>
           <div
-            className="h-full rounded-full bg-[#e25c2a] transition-[width] duration-300"
+            className="h-full rounded-full bg-[#22d3ee] transition-[width] duration-300"
             style={{ width: `${(answered / test.items.length) * 100}%` }}
           />
         </div>
@@ -278,7 +278,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
                   className={cn(
                     "h-14 rounded-xl border text-sm tabular-nums transition-colors",
                     selected === option.value
-                      ? "border-[#e25c2a] bg-[#e25c2a] text-[#1c100c]"
+                      ? "border-[#22d3ee] bg-[#22d3ee] text-[#031018]"
                       : "border-white/15 hover:border-white/40 hover:bg-white/5",
                   )}
                 >
@@ -286,7 +286,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
                 </button>
               ))}
             </div>
-            <div className="mt-3 flex justify-between text-xs text-[#b3a898]">
+            <div className="mt-3 flex justify-between text-xs text-[#8ea3bd]">
               <span>0% まったくない</span>
               <span>50% 半分くらい</span>
               <span>100% いつも</span>
@@ -303,7 +303,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
                 className={cn(
                   "flex h-16 items-center gap-4 rounded-2xl border px-5 text-left text-base transition-colors",
                   selected === option.value
-                    ? "border-[#e25c2a] bg-[#e25c2a] text-[#1c100c]"
+                    ? "border-[#22d3ee] bg-[#22d3ee] text-[#031018]"
                     : "border-white/15 hover:border-white/40 hover:bg-white/5",
                 )}
               >
@@ -311,7 +311,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
                   aria-hidden
                   className={cn(
                     "hidden size-7 shrink-0 items-center justify-center rounded-full border text-xs sm:flex",
-                    selected === option.value ? "border-[#1c100c]/40" : "border-white/20 text-[#b3a898]",
+                    selected === option.value ? "border-[#031018]/40" : "border-white/20 text-[#8ea3bd]",
                   )}
                 >
                   {position + 1}
@@ -327,14 +327,14 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
             type="button"
             disabled={index === 0}
             onClick={() => setIndex(index - 1)}
-            className="py-3 text-[#b3a898] underline-offset-4 hover:underline disabled:opacity-40"
+            className="py-3 text-[#8ea3bd] underline-offset-4 hover:underline disabled:opacity-40"
           >
             ← 前の質問
           </button>
           <button
             type="button"
             onClick={() => setPhase("intro")}
-            className="py-3 text-[#b3a898] underline-offset-4 hover:underline"
+            className="py-3 text-[#8ea3bd] underline-offset-4 hover:underline"
           >
             中断する（回答は保存されます）
           </button>
@@ -347,7 +347,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
   const scores = scoreTest(testId, progress.answers as number[]);
   return (
     <div className="mx-auto w-full max-w-3xl px-5 py-10 md:py-16">
-      <p className="text-sm text-[#e25c2a]">{test.title}の結果</p>
+      <p className="text-sm text-[#22d3ee]">{test.title}の結果</p>
       {testId === "confidence" ? (
         <ConfidenceResult scores={scores} age={progress.age} stats={stats} />
       ) : (
@@ -370,7 +370,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
               className={cn(
                 "h-10 rounded-lg border px-3 text-sm",
                 progress.age === group.id
-                  ? "border-[#e25c2a] bg-[#e25c2a] text-[#1c100c]"
+                  ? "border-[#22d3ee] bg-[#22d3ee] text-[#031018]"
                   : "border-white/15 hover:border-white/40",
               )}
             >
@@ -378,7 +378,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
             </button>
           ))}
         </div>
-        <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm leading-6 text-[#d9d0c3]">
+        <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm leading-6 text-[#c5d4e6]">
           <input
             type="checkbox"
             checked={progress.share}
@@ -387,7 +387,7 @@ export function DiagnosisView({ testId }: { testId: TestId }) {
               commit(next);
               void syncStats(next);
             }}
-            className="mt-1 size-4 accent-[#e25c2a]"
+            className="mt-1 size-4 accent-[#22d3ee]"
           />
           <span>
             この結果を匿名の平均値づくりに加える（年代と点数だけを送ります。外すと取り消されます）
@@ -454,13 +454,13 @@ function referenceRows(references: Reference[], age: AgeGroup | null): CompareIt
 
 function StatsNote({ stats }: { stats: StatsState }) {
   if (stats.status === "loading") {
-    return <p className="mt-3 text-xs text-[#b3a898]">このサイトの平均を読み込んでいます…</p>;
+    return <p className="mt-3 text-xs text-[#8ea3bd]">このサイトの平均を読み込んでいます…</p>;
   }
   if (stats.status === "error") {
-    return <p className="mt-3 text-xs text-[#e7b5a4]">このサイトの平均を読み込めませんでした。</p>;
+    return <p className="mt-3 text-xs text-[#fca5a5]">このサイトの平均を読み込めませんでした。</p>;
   }
   return (
-    <p className="mt-3 text-xs leading-6 text-[#b3a898]">
+    <p className="mt-3 text-xs leading-6 text-[#8ea3bd]">
       このサイトの平均は、集計に参加した人が{MIN_GROUP_SIZE}人以上そろってから表示します。参加者はこのサイトを訪れた人に限られるため、世の中全体の平均とは異なることがあります。
     </p>
   );
@@ -482,13 +482,13 @@ function ConfidenceResult({ scores, age, stats }: ResultProps) {
   return (
     <>
       <div className="paper mt-4 rounded-3xl px-6 py-8 md:px-10">
-        <p className="text-xs text-[#6d645b]">自分全体への自信（自尊感情）</p>
+        <p className="text-xs text-[#8ea3bd]">自分全体への自信（自尊感情）</p>
         <p className="mt-2 flex items-baseline gap-2">
           <span className="font-mincho text-6xl leading-none tabular-nums">{selfEsteem}</span>
-          <span className="text-sm text-[#6d645b]">/ 40点</span>
-          <span className="ml-3 rounded-full bg-[#1c1712] px-3 py-1 text-sm text-[#f3ebdd]">{level.label}</span>
+          <span className="text-sm text-[#8ea3bd]">/ 40点</span>
+          <span className="ml-3 rounded-full bg-[#eef6ff] px-3 py-1 text-sm text-[#eef6ff]">{level.label}</span>
         </p>
-        <p className="mt-4 text-sm leading-7 text-[#3f3832]">{level.text}</p>
+        <p className="mt-4 text-sm leading-7 text-[#c5d4e6]">{level.text}</p>
       </div>
 
       <section className="mt-10">
@@ -498,7 +498,7 @@ function ConfidenceResult({ scores, age, stats }: ResultProps) {
           you={selfEsteem}
           rows={[...referenceRows(SELF_ESTEEM_REFERENCES, age), ...siteRows(test.scores[0], age, stats)]}
         />
-        <p className="mt-3 text-xs leading-6 text-[#b3a898]">
+        <p className="mt-3 text-xs leading-6 text-[#8ea3bd]">
           研究の平均：{SELF_ESTEEM_SOURCE}20代は「大学生など」と「社会人」の間にあたります。
         </p>
         <StatsNote stats={stats} />
@@ -506,7 +506,7 @@ function ConfidenceResult({ scores, age, stats }: ResultProps) {
 
       <section className="mt-12">
         <h2 className="font-mincho text-2xl">分野ごとの自信</h2>
-        <p className="mt-3 text-sm leading-7 text-[#d9d0c3]">
+        <p className="mt-3 text-sm leading-7 text-[#c5d4e6]">
           いちばん自信があるのは{strongest.map((def) => `「${def.label}」`).join("")}、
           いちばん自信が低いのは{weakest.map((def) => `「${def.label}」`).join("")}です。
         </p>
@@ -515,7 +515,7 @@ function ConfidenceResult({ scores, age, stats }: ResultProps) {
             <li key={def.key}>
               <div className="flex items-baseline justify-between text-sm">
                 <span>{def.label}</span>
-                <span className="tabular-nums text-[#b3a898]">
+                <span className="tabular-nums text-[#8ea3bd]">
                   {formatScore(def, scores[def.key])} / 4
                 </span>
               </div>
@@ -523,7 +523,7 @@ function ConfidenceResult({ scores, age, stats }: ResultProps) {
             </li>
           ))}
         </ul>
-        <p className="mt-4 text-xs leading-6 text-[#b3a898]">
+        <p className="mt-4 text-xs leading-6 text-[#8ea3bd]">
           各分野3問の平均です（1＝強くそう思わない〜4＝強くそう思う）。
           {Object.keys(domainSiteMeans).length > 0
             ? `白い線は${domainSiteLabel}です。`
@@ -545,22 +545,22 @@ function DissociationResult({ scores, age, stats }: ResultProps) {
   return (
     <>
       <div className="paper mt-4 rounded-3xl px-6 py-8 md:px-10">
-        <p className="text-xs text-[#6d645b]">解離体験の合計（28問の平均）</p>
+        <p className="text-xs text-[#8ea3bd]">解離体験の合計（28問の平均）</p>
         <p className="mt-2 flex items-baseline gap-2">
           <span className="font-mincho text-6xl leading-none tabular-nums">
             {formatScore(test.scores[0], total)}
           </span>
-          <span className="text-sm text-[#6d645b]">/ 100</span>
-          <span className="ml-3 rounded-full bg-[#1c1712] px-3 py-1 text-sm text-[#f3ebdd]">{band.label}</span>
+          <span className="text-sm text-[#8ea3bd]">/ 100</span>
+          <span className="ml-3 rounded-full bg-[#eef6ff] px-3 py-1 text-sm text-[#eef6ff]">{band.label}</span>
         </p>
-        <p className="mt-4 text-sm leading-7 text-[#3f3832]">{band.text}</p>
-        <p className="mt-4 text-xs leading-6 text-[#6d645b]">
+        <p className="mt-4 text-sm leading-7 text-[#c5d4e6]">{band.text}</p>
+        <p className="mt-4 text-xs leading-6 text-[#8ea3bd]">
           これは診断ではありません。二重人格（解離性同一症）かどうかは、医師による面接でしか判断できません。
         </p>
       </div>
 
       {total >= 20 && (
-        <div className="mt-6 rounded-2xl border border-[#e25c2a]/50 px-5 py-4 text-sm leading-7 text-[#ddd4c6]">
+        <div className="mt-6 rounded-2xl border border-[#22d3ee]/50 px-5 py-4 text-sm leading-7 text-[#cfdcec]">
           <p>
             記憶が抜ける、自分が自分でないように感じるといったことで困っているときは、精神科・心療内科で相談できます。
           </p>
@@ -579,7 +579,7 @@ function DissociationResult({ scores, age, stats }: ResultProps) {
           you={total}
           rows={[...referenceRows(DISSOCIATION_REFERENCES, age), ...siteRows(test.scores[0], age, stats)]}
         />
-        <p className="mt-3 text-xs leading-6 text-[#b3a898]">
+        <p className="mt-3 text-xs leading-6 text-[#8ea3bd]">
           研究の平均：{DISSOCIATION_SOURCE}
           研究で使われた日本語版とこのサイトの訳は文言が異なるため、比べる数値は目安です。
         </p>
@@ -593,17 +593,17 @@ function DissociationResult({ scores, age, stats }: ResultProps) {
             <li key={def.key}>
               <div className="flex items-baseline justify-between text-sm">
                 <span>{def.label}</span>
-                <span className="tabular-nums text-[#b3a898]">{formatScore(def, scores[def.key])}</span>
+                <span className="tabular-nums text-[#8ea3bd]">{formatScore(def, scores[def.key])}</span>
               </div>
               <Bar def={def} value={scores[def.key]} marker={subSiteMeans[def.key]} />
             </li>
           ))}
         </ul>
-        <p className="mt-4 text-xs leading-6 text-[#b3a898]">
+        <p className="mt-4 text-xs leading-6 text-[#8ea3bd]">
           各6問の平均です。「のめり込み」は多くの人にある体験で、「記憶の抜け」「現実感の薄れ」が高いほど解離性の障害との関係が強いとされています。
           {Object.keys(subSiteMeans).length > 0 && "白い線はこのサイトの平均です。"}
         </p>
-        <p className="mt-2 text-xs leading-6 text-[#b3a898]">{BAND_SOURCE}</p>
+        <p className="mt-2 text-xs leading-6 text-[#8ea3bd]">{BAND_SOURCE}</p>
       </section>
     </>
   );
@@ -626,20 +626,20 @@ function CompareChart({ def, you, rows }: { def: ScoreDef; you: number; rows: Co
         return (
           <li key={row.label}>
             <div className="flex items-baseline justify-between gap-3 text-sm">
-              <span className={cn(row.highlight ? "text-[#f3ebdd]" : "text-[#d9d0c3]")}>
+              <span className={cn(row.highlight ? "text-[#eef6ff]" : "text-[#c5d4e6]")}>
                 {row.label}
-                {row.detail && <span className="ml-2 text-xs text-[#8d8478]">{row.detail}</span>}
+                {row.detail && <span className="ml-2 text-xs text-[#66798f]">{row.detail}</span>}
               </span>
               <span className="shrink-0 tabular-nums">
                 {row.value === undefined ? (
-                  <span className="text-xs text-[#8d8478]">
+                  <span className="text-xs text-[#66798f]">
                     {row.site ? `${MIN_GROUP_SIZE}人未満` : "—"}
                   </span>
                 ) : (
                   <>
                     {formatScore(def, row.value)}
                     {diff !== null && (
-                      <span className="ml-2 text-xs text-[#b3a898]">
+                      <span className="ml-2 text-xs text-[#8ea3bd]">
                         （あなたは{diff >= 0 ? "+" : ""}
                         {diff.toFixed(1)}）
                       </span>
@@ -676,13 +676,13 @@ function Bar({
       <div
         className={cn(
           "h-full rounded-full",
-          tone === "you" ? "bg-[#e25c2a]" : tone === "near" ? "bg-[#d9b99a]" : "bg-[#6f665c]",
+          tone === "you" ? "bg-[#22d3ee]" : tone === "near" ? "bg-[#7dd3fc]" : "bg-[#334155]",
         )}
         style={{ width: position(value) }}
       />
       {marker !== undefined && (
         <div
-          className="absolute -top-1 h-4.5 w-0.5 rounded bg-[#f3ebdd]"
+          className="absolute -top-1 h-4.5 w-0.5 rounded bg-[#eef6ff]"
           style={{ left: position(marker) }}
         />
       )}

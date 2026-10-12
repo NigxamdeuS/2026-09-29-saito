@@ -21,7 +21,7 @@ export function ResetJournal() {
     <Dialog open={open} onOpenChange={setOpen}>
       <Button
         variant="ghost"
-        className="h-9 px-2 text-[#b3a898]"
+        className="h-9 px-2 text-[#8ea3bd]"
         onClick={() => setOpen(true)}
       >
         記録を消去

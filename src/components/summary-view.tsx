@@ -20,14 +20,14 @@ import { cn } from "cn";
 function AnswerLine({ question, answer }: { question: Question; answer: AnswerRecord | undefined }) {
   return (
     <div>
-      <p className="text-xs text-[#b3a898]">
+      <p className="text-xs text-[#8ea3bd]">
         第{question.number}問 · {question.topic}
       </p>
-      <p className={cn("mt-1 text-sm leading-7", !answer && "text-[#8d8478]")}>
+      <p className={cn("mt-1 text-sm leading-7", !answer && "text-[#66798f]")}>
         {answer ? choiceLabel(question, answer.choice) : "未回答"}
       </p>
       {answer?.note && (
-        <p className="mt-1 whitespace-pre-wrap text-xs leading-6 text-[#d9d0c3]">{answer.note}</p>
+        <p className="mt-1 whitespace-pre-wrap text-xs leading-6 text-[#c5d4e6]">{answer.note}</p>
       )}
     </div>
   );
@@ -39,7 +39,7 @@ export function SummaryView() {
   const [copyError, setCopyError] = useState(false);
 
   if (!ready) {
-    return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">記録を読み込んでいます…</p>;
+    return <p className="px-5 py-24 text-center text-sm text-[#8ea3bd]">記録を読み込んでいます…</p>;
   }
 
   const answered = answeredCount(journal);
@@ -61,14 +61,14 @@ export function SummaryView() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 py-10 md:py-16">
-      <p className="text-sm text-[#e25c2a]">まとめ</p>
+      <p className="text-sm text-[#22d3ee]">まとめ</p>
       <div className="paper mt-4 rounded-3xl px-6 py-8 md:px-10 md:py-10">
-        <p className="text-xs text-[#6d645b]">ここまでの回答</p>
+        <p className="text-xs text-[#8ea3bd]">ここまでの回答</p>
         <p className="font-mincho mt-2 text-5xl leading-none tabular-nums">
           {answered} / {TOTAL_QUESTIONS}
         </p>
-        <p className="mt-3 text-sm text-[#3f3832]">うち保留 {heldCount(journal)}問</p>
-        <p className="mt-6 text-sm leading-7 text-[#3f3832]">
+        <p className="mt-3 text-sm text-[#c5d4e6]">うち保留 {heldCount(journal)}問</p>
+        <p className="mt-6 text-sm leading-7 text-[#c5d4e6]">
           番号は点数ではないため、合計点や判定は出しません。ここでは、答えを振り返るための材料を並べています。
         </p>
       </div>
@@ -82,7 +82,7 @@ export function SummaryView() {
               className="flex items-baseline justify-between gap-3 border-t border-white/10 py-3 text-sm"
             >
               <span>{summary.category}</span>
-              <span className="tabular-nums text-[#b3a898]">
+              <span className="tabular-nums text-[#8ea3bd]">
                 {summary.answered}/{summary.total}
                 {summary.held > 0 && ` · 保留 ${summary.held}`}
               </span>
@@ -93,11 +93,11 @@ export function SummaryView() {
 
       <section className="mt-12">
         <h2 className="font-mincho text-2xl">条件を変えた質問</h2>
-        <p className="mt-3 text-sm leading-7 text-[#d9d0c3]">
+        <p className="mt-3 text-sm leading-7 text-[#c5d4e6]">
           第91問から第100問は、前に出た場面の相手・立場・負担などを変えた質問です。元の質問と並べています。答えが変わることだけで、矛盾や病気を意味するわけではありません。
         </p>
         {pairs.length === 0 ? (
-          <p className="mt-6 text-sm text-[#b3a898]">
+          <p className="mt-6 text-sm text-[#8ea3bd]">
             まだ比べられる回答がありません。
           </p>
         ) : (
@@ -122,7 +122,7 @@ export function SummaryView() {
 
       <section className="mt-12">
         <h2 className="font-mincho text-2xl">テキストで書き出す</h2>
-        <p className="mt-3 text-sm leading-7 text-[#d9d0c3]">
+        <p className="mt-3 text-sm leading-7 text-[#c5d4e6]">
           100問すべてを、質問・選択肢・回答・理由の形で書き出します。まだ答えていない質問は、回答欄が空になります。
         </p>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -137,11 +137,11 @@ export function SummaryView() {
           </Link>
         </div>
         {copyError && (
-          <p className="mt-3 text-sm text-[#e7b5a4]">
+          <p className="mt-3 text-sm text-[#fca5a5]">
             コピーできませんでした。下のテキストを選択してコピーしてください。
           </p>
         )}
-        <pre className="mt-5 max-h-[32rem] overflow-y-auto whitespace-pre-wrap rounded-2xl border border-white/10 px-4 py-4 font-sans text-sm leading-7 text-[#ddd4c6]">
+        <pre className="mt-5 max-h-[32rem] overflow-y-auto whitespace-pre-wrap rounded-2xl border border-white/10 px-4 py-4 font-sans text-sm leading-7 text-[#cfdcec]">
           {text}
         </pre>
       </section>

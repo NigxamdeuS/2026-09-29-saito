@@ -9,7 +9,7 @@ export default function AskPage() {
   return (
     <Suspense
       fallback={
-        <p className="px-5 py-24 text-center text-sm text-[#b3a898]">質問を読み込んでいます…</p>
+        <p className="px-5 py-24 text-center text-sm text-[#8ea3bd]">質問を読み込んでいます…</p>
       }
     >
       <AskView />

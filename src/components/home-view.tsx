@@ -37,7 +37,7 @@ export function HomeView() {
   return (
     <div className="mx-auto w-full max-w-3xl px-5 pt-10 pb-8 md:pt-20">
       <h1 className="font-mincho text-5xl leading-none font-medium md:text-7xl">Nigxam</h1>
-      <p className="mt-6 max-w-xl text-[15px] leading-8 text-[#ddd4c6]">
+      <p className="mt-6 max-w-xl text-[15px] leading-8 text-[#cfdcec]">
         研究で使われている質問紙をもとに、自分の自信の強さと、解離（二重人格に関係する体験）の傾向を、別々に測ります。結果は研究の平均や、同じ年代の人の平均と比べられます。
       </p>
 
@@ -55,14 +55,14 @@ export function HomeView() {
                 id === "confidence" ? "paper" : "border border-white/15 bg-white/[0.03]",
               )}
             >
-              <span className={cn("text-xs", id === "confidence" ? "text-[#6d645b]" : "text-[#b3a898]")}>
+              <span className={cn("text-xs", id === "confidence" ? "text-[#8ea3bd]" : "text-[#8ea3bd]")}>
                 {test.items.length}問 · 約{Math.ceil(test.items.length / 6)}分
               </span>
               <span className="font-mincho mt-2 text-3xl">{test.title}</span>
               <ul
                 className={cn(
                   "mt-4 flex-1 space-y-1.5 text-sm leading-6",
-                  id === "confidence" ? "text-[#3f3832]" : "text-[#d9d0c3]",
+                  id === "confidence" ? "text-[#c5d4e6]" : "text-[#c5d4e6]",
                 )}
               >
                 {card.points.map((point) => (
@@ -72,7 +72,7 @@ export function HomeView() {
               <span
                 className={cn(
                   "mt-6 inline-flex h-12 items-center justify-center rounded-xl text-base font-medium",
-                  id === "confidence" ? "bg-[#1c1712] text-[#f3ebdd]" : "bg-[#e25c2a] text-[#1c100c]",
+                  id === "confidence" ? "bg-[#22d3ee] text-[#031018]" : "bg-[#22d3ee] text-[#031018]",
                 )}
               >
                 {state?.done
@@ -86,16 +86,16 @@ export function HomeView() {
         })}
       </div>
 
-      <div className="mt-8 max-w-xl rounded-2xl border border-white/15 px-4 py-4 text-sm leading-7 text-[#ddd4c6]">
+      <div className="mt-8 max-w-xl rounded-2xl border border-white/15 px-4 py-4 text-sm leading-7 text-[#cfdcec]">
         <p>どちらも医療機関での診断の代わりにはなりません。</p>
         <p>
           解離傾向チェックの点数が高くても、それだけで二重人格（解離性同一症）だと決まるわけではありません。気になるときは、精神科や心療内科で相談してください。
         </p>
       </div>
 
-      <p className="mt-10 text-sm text-[#b3a898]">
+      <p className="mt-10 text-sm text-[#8ea3bd]">
         具体的な場面での行動を考える質問集もあります（診断ではありません）：
-        <Link href="/scenes" className="ml-1 text-[#f3ebdd] underline underline-offset-4">
+        <Link href="/scenes" className="ml-1 text-[#eef6ff] underline underline-offset-4">
           場面で選ぶ100問
         </Link>
       </p>

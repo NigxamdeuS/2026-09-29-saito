@@ -29,10 +29,10 @@ export default async function UnlockPage({ searchParams }: PageProps<"/unlock">)
           autoFocus
           aria-invalid={failed}
           aria-describedby={failed ? "unlock-error" : undefined}
-          className="mt-2 w-full rounded-xl border border-black/15 bg-white/60 px-3 py-2.5 text-base leading-7 outline-none transition focus:border-[#c4552a] focus:ring-3 focus:ring-[#c4552a]/20 aria-invalid:border-[#b3261e] sm:text-[15px]"
+          className="mt-2 w-full rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2.5 text-base leading-7 outline-none transition focus:border-[#22d3ee] focus:ring-3 focus:ring-[#22d3ee]/20 aria-invalid:border-[#f87171] sm:text-[15px]"
         />
         {failed && (
-          <p id="unlock-error" role="alert" className="mt-2 text-sm leading-6 text-[#b3261e]">
+          <p id="unlock-error" role="alert" className="mt-2 text-sm leading-6 text-[#f87171]">
             パスワードが違います。
           </p>
         )}

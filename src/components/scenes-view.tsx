@@ -23,11 +23,11 @@ export function ScenesView() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 pt-10 pb-8 md:pt-20">
-      <p className="text-sm text-[#e25c2a]">おまけの質問集</p>
+      <p className="text-sm text-[#22d3ee]">おまけの質問集</p>
       <h1 className="font-mincho mt-4 text-4xl leading-tight font-medium md:text-5xl">
         場面で選ぶ100問（3択）
       </h1>
-      <div className="mt-8 max-w-xl space-y-4 text-[15px] leading-8 text-[#ddd4c6]">
+      <div className="mt-8 max-w-xl space-y-4 text-[15px] leading-8 text-[#cfdcec]">
         <p>
           仕事、友人関係、地域の集まりなどの具体的な場面で、自分がどんな行動を選びそうかを考える質問集です。
         </p>
@@ -35,7 +35,7 @@ export function ScenesView() {
           何を優先するか、相手との関係や忙しさによって選び方がどう変わるかを振り返るために作成しました。
         </p>
       </div>
-      <div className="mt-6 max-w-xl rounded-2xl border border-white/15 px-4 py-4 text-sm leading-7 text-[#ddd4c6]">
+      <div className="mt-6 max-w-xl rounded-2xl border border-white/15 px-4 py-4 text-sm leading-7 text-[#cfdcec]">
         <p>この質問集は、医学的・心理学的に精度を検証した検査ではありません。</p>
         <p>
           解離性同一症（DID）の有無や確率を判定したり、性格を確定したりすることはできません。
@@ -43,16 +43,16 @@ export function ScenesView() {
       </div>
 
       {!ready ? (
-        <p className="mt-10 text-sm text-[#b3a898]">記録を読み込んでいます…</p>
+        <p className="mt-10 text-sm text-[#8ea3bd]">記録を読み込んでいます…</p>
       ) : (
         <>
           {answered > 0 && (
             <div className="paper mt-10 rounded-3xl px-6 py-6 md:px-8">
-              <p className="text-xs text-[#6d645b]">ここまでの回答</p>
+              <p className="text-xs text-[#8ea3bd]">ここまでの回答</p>
               <p className="font-mincho mt-2 text-3xl tabular-nums">
                 {answered} / {TOTAL_QUESTIONS}
               </p>
-              <p className="mt-2 text-sm text-[#3f3832]">うち保留 {heldCount(journal)}問</p>
+              <p className="mt-2 text-sm text-[#c5d4e6]">うち保留 {heldCount(journal)}問</p>
             </div>
           )}
 
@@ -81,10 +81,10 @@ export function ScenesView() {
 
       <section className="mt-14 max-w-xl">
         <h2 className="font-mincho text-2xl">答え方</h2>
-        <ul className="mt-4 space-y-3 text-sm leading-7 text-[#ddd4c6]">
+        <ul className="mt-4 space-y-3 text-sm leading-7 text-[#cfdcec]">
           {howTo.map((line) => (
             <li key={line} className="flex gap-2">
-              <span aria-hidden className="text-[#b3a898]">
+              <span aria-hidden className="text-[#8ea3bd]">
                 ・
               </span>
               <span>{line}</span>

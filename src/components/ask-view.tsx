@@ -115,7 +115,7 @@ export function AskView() {
   }, [question, phase]);
 
   if (!ready || (!editId && round === null)) {
-    return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">記録を読み込んでいます…</p>;
+    return <p className="px-5 py-24 text-center text-sm text-[#8ea3bd]">記録を読み込んでいます…</p>;
   }
 
   if (editId && !question) {
@@ -134,7 +134,7 @@ export function AskView() {
       <section className="mx-auto w-full max-w-3xl px-5 py-16">
         <div className="paper rounded-3xl px-6 py-10 md:px-10">
           <h1 className="font-mincho text-4xl leading-tight">100問すべてに答えました。</h1>
-          <p className="mt-4 leading-8 text-[#3f3832]">
+          <p className="mt-4 leading-8 text-[#c5d4e6]">
             まとめでは、条件を変えた質問での答えを並べて見られます。履歴から、答えや理由を書き直すこともできます。
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -162,7 +162,7 @@ export function AskView() {
           >
             {`今回の${round.ids.length}問が終わりました。`}
           </h1>
-          <p className="mt-4 leading-8 text-[#3f3832]">
+          <p className="mt-4 leading-8 text-[#c5d4e6]">
             {`ここまでの回答は${answered}/${TOTAL_QUESTIONS}問です（うち保留${heldCount(journal)}問）。100問を一度に答える必要はありません。続きは、次に開いたときにここから始まります。`}
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -183,7 +183,7 @@ export function AskView() {
           </div>
           <Link
             href="/scenes"
-            className="mt-6 inline-block text-sm text-[#6d645b] underline-offset-4 hover:underline"
+            className="mt-6 inline-block text-sm text-[#8ea3bd] underline-offset-4 hover:underline"
           >
             今日はここまでにする
           </Link>
@@ -193,7 +193,7 @@ export function AskView() {
   }
 
   if (!question) {
-    return <p className="px-5 py-24 text-center text-sm text-[#b3a898]">質問を読み込んでいます…</p>;
+    return <p className="px-5 py-24 text-center text-sm text-[#8ea3bd]">質問を読み込んでいます…</p>;
   }
 
   const options: { choice: Choice; label: string; text: string }[] = [
@@ -210,10 +210,10 @@ export function AskView() {
       <article className="paper rounded-3xl px-5 py-8 md:px-10 md:py-12">
         <div className="flex flex-wrap items-baseline justify-between gap-3 text-xs">
           <p>
-            <span className="text-[#c4552a]">{question.category}</span>
-            <span className="text-[#6d645b]">／{question.topic}</span>
+            <span className="text-[#22d3ee]">{question.category}</span>
+            <span className="text-[#8ea3bd]">／{question.topic}</span>
           </p>
-          <p className="tabular-nums text-[#6d645b]">
+          <p className="tabular-nums text-[#8ea3bd]">
             {editId
               ? `第${question.number}問／${TOTAL_QUESTIONS} · 選び直し`
               : `第${question.number}問／${TOTAL_QUESTIONS} · 今回 ${(round?.cursor ?? 0) + 1}/${round?.ids.length ?? 0}`}
@@ -241,9 +241,9 @@ export function AskView() {
                   "flex items-baseline rounded-2xl border px-4 py-4 text-left text-[15px] leading-7 transition",
                   hold && "border-dashed",
                   active
-                    ? "border-[#1c1712] bg-[#1c1712] text-[#f3ebdd]"
+                    ? "border-[#22d3ee] bg-[#22d3ee] text-[#031018]"
                     : hold
-                      ? "border-black/20 text-[#3f3832] hover:border-black/40"
+                      ? "border-white/20 text-[#c5d4e6] hover:border-white/40"
                       : "border-black/10 hover:border-black/30",
                 )}
               >
@@ -255,9 +255,9 @@ export function AskView() {
         </div>
         <div className="mt-6">
           <label htmlFor="answer-note" className="text-sm font-medium">
-            理由・補足<span className="ml-2 text-xs font-normal text-[#6d645b]">任意</span>
+            理由・補足<span className="ml-2 text-xs font-normal text-[#8ea3bd]">任意</span>
           </label>
-          <p id="answer-note-help" className="mt-1 text-xs leading-6 text-[#6d645b]">
+          <p id="answer-note-help" className="mt-1 text-xs leading-6 text-[#8ea3bd]">
             {draft.choice === "hold"
               ? "決められなかった理由や、足りなかった条件を書けます。"
               : "迷った点や、どんな条件なら別の行動を選ぶかを書いても構いません。"}
@@ -272,13 +272,13 @@ export function AskView() {
               setDraft((current) => ({ ...current, note }));
             }}
             aria-describedby="answer-note-help"
-            className="mt-2 w-full resize-y rounded-xl border border-black/15 bg-white/60 px-3 py-2.5 text-base leading-7 outline-none transition focus:border-[#c4552a] focus:ring-3 focus:ring-[#c4552a]/20 sm:text-[15px]"
+            className="mt-2 w-full resize-y rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2.5 text-base leading-7 outline-none transition focus:border-[#22d3ee] focus:ring-3 focus:ring-[#22d3ee]/20 sm:text-[15px]"
           />
         </div>
         <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link
             href={editId ? "/log" : "/"}
-            className="text-sm text-[#6d645b] underline-offset-4 hover:underline"
+            className="text-sm text-[#8ea3bd] underline-offset-4 hover:underline"
           >
             {editId ? "履歴に戻る" : "今日はここまでにする"}
           </Link>
@@ -287,7 +287,7 @@ export function AskView() {
           </Button>
         </div>
       </article>
-      <p className="mt-4 hidden text-center text-xs text-[#8d8478] md:block">
+      <p className="mt-4 hidden text-center text-xs text-[#66798f] md:block">
         1・2・3 キーで選択し、Enter キーで次へ進めます（理由の欄に入力中は使えません）
       </p>
     </section>

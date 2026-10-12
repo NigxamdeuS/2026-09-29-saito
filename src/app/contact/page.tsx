@@ -8,7 +8,7 @@ export default function ContactPage() {
   return (
     <div className="mx-auto w-full max-w-3xl px-5 py-10 md:py-16">
       <h1 className="font-mincho text-4xl">お問い合わせ</h1>
-      <p className="mt-4 max-w-xl text-sm leading-7 text-[#d9d0c3]">
+      <p className="mt-4 max-w-xl text-sm leading-7 text-[#c5d4e6]">
         ご意見・ご質問・不具合のご報告などはこちらからお送りください。ログやメモなどのテキストファイルは、まとめて添付できます。
       </p>
       <div className="mt-8">

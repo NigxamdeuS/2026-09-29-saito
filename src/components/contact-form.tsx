@@ -18,7 +18,7 @@ import {
 import { cn } from "cn";
 
 const fieldClass =
-  "mt-2 w-full rounded-xl border border-black/15 bg-white/60 px-3 py-2.5 text-base leading-7 sm:text-[15px] outline-none transition focus:border-[#c4552a] focus:ring-3 focus:ring-[#c4552a]/20 aria-invalid:border-[#b3261e]";
+  "mt-2 w-full rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2.5 text-base leading-7 sm:text-[15px] outline-none transition focus:border-[#22d3ee] focus:ring-3 focus:ring-[#22d3ee]/20 aria-invalid:border-[#f87171]";
 
 function fileKey(file: File) {
   return `${file.name}:${file.size}:${file.lastModified}`;
@@ -27,7 +27,7 @@ function fileKey(file: File) {
 function FieldError({ id, text }: { id: string; text?: string }) {
   if (!text) return null;
   return (
-    <p id={id} className="mt-2 text-sm leading-6 text-[#b3261e]">
+    <p id={id} className="mt-2 text-sm leading-6 text-[#f87171]">
       {text}
     </p>
   );
@@ -93,12 +93,12 @@ export function ContactForm() {
   return (
     <form onSubmit={onSubmit} noValidate className="paper rounded-3xl px-5 py-8 md:px-10 md:py-10">
       {state.status === "ok" && (
-        <p role="status" className="mb-6 rounded-xl bg-[#8eae98]/25 px-4 py-3 text-sm leading-6">
+        <p role="status" className="mb-6 rounded-xl bg-[#10b981]/25 px-4 py-3 text-sm leading-6">
           {state.message}内容を確認のうえ、ご連絡します。
         </p>
       )}
       {state.status === "error" && (
-        <p role="alert" className="mb-6 rounded-xl bg-[#b3261e]/10 px-4 py-3 text-sm leading-6 text-[#8c1d17]">
+        <p role="alert" className="mb-6 rounded-xl bg-[#f87171]/10 px-4 py-3 text-sm leading-6 text-[#fca5a5]">
           {state.message}
         </p>
       )}
@@ -106,7 +106,7 @@ export function ContactForm() {
       <div className="grid gap-6">
         <div>
           <label htmlFor="contact-name" className="text-sm font-medium">
-            お名前<span className="ml-2 text-xs font-normal text-[#6d645b]">任意</span>
+            お名前<span className="ml-2 text-xs font-normal text-[#8ea3bd]">任意</span>
           </label>
           <input
             id="contact-name"
@@ -126,7 +126,7 @@ export function ContactForm() {
 
         <div>
           <label htmlFor="contact-email" className="text-sm font-medium">
-            メールアドレス<span className="ml-2 text-xs font-normal text-[#c4552a]">必須</span>
+            メールアドレス<span className="ml-2 text-xs font-normal text-[#22d3ee]">必須</span>
           </label>
           <input
             id="contact-email"
@@ -147,7 +147,7 @@ export function ContactForm() {
 
         <div>
           <label htmlFor="contact-message" className="text-sm font-medium">
-            お問い合わせ内容<span className="ml-2 text-xs font-normal text-[#c4552a]">必須</span>
+            お問い合わせ内容<span className="ml-2 text-xs font-normal text-[#22d3ee]">必須</span>
           </label>
           <textarea
             id="contact-message"
@@ -163,7 +163,7 @@ export function ContactForm() {
             aria-describedby={errors.message ? "contact-message-error" : "contact-message-count"}
             className={cn(fieldClass, "resize-y")}
           />
-          <p id="contact-message-count" className="mt-1 text-right text-xs tabular-nums text-[#6d645b]">
+          <p id="contact-message-count" className="mt-1 text-right text-xs tabular-nums text-[#8ea3bd]">
             {message.length} / {MAX_MESSAGE_LENGTH}
           </p>
           <FieldError id="contact-message-error" text={errors.message} />
@@ -171,9 +171,9 @@ export function ContactForm() {
 
         <div>
           <p className="text-sm font-medium">
-            添付ファイル<span className="ml-2 text-xs font-normal text-[#6d645b]">任意</span>
+            添付ファイル<span className="ml-2 text-xs font-normal text-[#8ea3bd]">任意</span>
           </p>
-          <p className="mt-1 text-xs leading-6 text-[#6d645b]">
+          <p className="mt-1 text-xs leading-6 text-[#8ea3bd]">
             テキストファイル（{TEXT_EXTENSIONS.join("・")}）を{MAX_FILES}個まで添付できます。1ファイル
             {formatBytes(MAX_FILE_BYTES)}まで、合計{formatBytes(MAX_TOTAL_BYTES)}までです。
           </p>
@@ -190,10 +190,10 @@ export function ContactForm() {
             }}
             className={cn(
               "mt-3 rounded-2xl border border-dashed px-4 py-6 text-center transition",
-              dragging ? "border-[#c4552a] bg-[#c4552a]/5" : "border-black/20",
+              dragging ? "border-[#22d3ee] bg-[#22d3ee]/5" : "border-white/20",
             )}
           >
-            <p className="text-sm text-[#3f3832]">ここにファイルをドラッグ＆ドロップ</p>
+            <p className="text-sm text-[#c5d4e6]">ここにファイルをドラッグ＆ドロップ</p>
             <Button
               type="button"
               variant="outline"
@@ -231,11 +231,11 @@ export function ContactForm() {
                     >
                       <span className="min-w-0 truncate">{file.name}</span>
                       <span className="flex shrink-0 items-center gap-3">
-                        <span className="text-xs tabular-nums text-[#6d645b]">{formatBytes(file.size)}</span>
+                        <span className="text-xs tabular-nums text-[#8ea3bd]">{formatBytes(file.size)}</span>
                         <button
                           type="button"
                           onClick={() => removeFile(key)}
-                          className="-my-2 -mr-2 px-2 py-2 text-xs text-[#6d645b] underline-offset-4 hover:underline"
+                          className="-my-2 -mr-2 px-2 py-2 text-xs text-[#8ea3bd] underline-offset-4 hover:underline"
                           aria-label={`${file.name} を外す`}
                         >
                           外す
@@ -245,7 +245,7 @@ export function ContactForm() {
                   );
                 })}
               </ul>
-              <p className="mt-2 text-right text-xs tabular-nums text-[#6d645b]">
+              <p className="mt-2 text-right text-xs tabular-nums text-[#8ea3bd]">
                 {files.length} / {MAX_FILES}個 · 合計 {formatBytes(total)}
               </p>
             </>
