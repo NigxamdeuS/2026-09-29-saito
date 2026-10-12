@@ -6,6 +6,7 @@ import { useJournal } from "@/components/journal-context";
 import { cn } from "cn";
 
 const links = [
+  { href: "/mbti", label: "4軸タイプ", match: ["/mbti"] },
   { href: "/confidence", label: "自信度", match: ["/confidence"] },
   { href: "/dissociation", label: "解離傾向", match: ["/dissociation"] },
   { href: "/scenes", label: "場面100問", match: ["/scenes", "/ask", "/model", "/log"] },
